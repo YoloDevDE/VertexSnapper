@@ -5,6 +5,7 @@ using BepInEx.Configuration;
 using UnityEngine;
 using UnityEngine.Rendering;
 using ZeepSDK.LevelEditor;
+using ZeepSDK.Messaging;
 
 namespace VertexSnapper;
 
@@ -13,6 +14,7 @@ public class Plugin : BaseUnityPlugin
 {
     private const int MAX_HITS = 16;
     private const string BLOCK_TAG = "BuildingBlock";
+    private const float VISIBILITY_UPDATE_INTERVAL = 0.1f;
 
     private static readonly RaycastHit[] hits = new RaycastHit[MAX_HITS];
 
@@ -24,24 +26,28 @@ public class Plugin : BaseUnityPlugin
 
     private LEV_LevelEditorCentral central;
 
+    private VertexMode currentMode = VertexMode.Inactive;
+
     private Transform cursor;
+
+    // Simplified visibility management
+    private readonly HashSet<Renderer> hiddenRenderers = new HashSet<Renderer>();
+    private GameObject hologram;
     private bool isDragging;
 
     private bool isInEditor;
     private ConfigEntry<KeyCode> key;
+    private float lastVisibilityUpdateTime;
     private ConfigEntry<float> maxDistance;
     private MeshFilter[] meshFilters;
     private BlockProperties selectedItem;
 
     private ConfigEntry<float> selectionRadius;
+    private BlockProperties storedSelectedItem;
+    private Vector3 storedVertexPosition;
+    private Vector3 storedVertOffset;
     private Vector3 vertOffset;
-
-    // New fields for transparency management
-    private Dictionary<Renderer, Material[]> originalMaterials = new Dictionary<Renderer, Material[]>();
-    private Dictionary<Renderer, Material[]> transparentMaterials = new Dictionary<Renderer, Material[]>();
-    private HashSet<Renderer> outOfRangeRenderers = new HashSet<Renderer>();
-    private float lastTransparencyUpdateTime;
-    private const float TRANSPARENCY_UPDATE_INTERVAL = 0.1f; // Update every 100ms for performance
+    private bool wasKeyDownLastFrame;
 
     private Transform Target => selectedItem == null ? null : selectedItem.transform;
 
@@ -49,9 +55,7 @@ public class Plugin : BaseUnityPlugin
     {
         LevelEditorApi.EnteredLevelEditor += EnteredLevelEditor;
         LevelEditorApi.ExitedLevelEditor += ExitedLevelEditor;
-        // TODO: Have one for exiting level editor
 
-        // Plugin startup logic
         Logger.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
 
         selectionRadius = Config.Bind("General",
@@ -77,18 +81,40 @@ public class Plugin : BaseUnityPlugin
             return;
         }
 
-        // Update transparency for out-of-range objects periodically
-        if (Time.time - lastTransparencyUpdateTime > TRANSPARENCY_UPDATE_INTERVAL)
+        bool keyDown = Input.GetKey(key.Value);
+        bool leftMousePressed = Input.GetMouseButtonDown(0);
+
+        // Handle mode transitions
+        HandleModeTransitions(keyDown, leftMousePressed);
+
+        // Handle visibility based on key state (only when not in snapping mode)
+        if (currentMode != VertexMode.Snapping)
         {
-            UpdateObjectTransparency();
-            lastTransparencyUpdateTime = Time.time;
+            if (keyDown != wasKeyDownLastFrame)
+            {
+                if (keyDown)
+                {
+                    lastVisibilityUpdateTime = 0; // Force immediate update
+                }
+                else
+                {
+                    RestoreAllVisibility();
+                }
+
+                wasKeyDownLastFrame = keyDown;
+            }
+
+            if (keyDown && Time.time - lastVisibilityUpdateTime > VISIBILITY_UPDATE_INTERVAL)
+            {
+             
+                lastVisibilityUpdateTime = Time.time;
+            }
         }
 
-        bool keyDown = Input.GetKey(key.Value);
-
+        // Handle mouse input blocking
         if (central != null)
         {
-            if (keyDown)
+            if (keyDown || currentMode == VertexMode.Snapping)
             {
                 LevelEditorApi.BlockMouseInput(this);
             }
@@ -98,36 +124,120 @@ public class Plugin : BaseUnityPlugin
             }
         }
 
+        // Handle different modes
+        switch (currentMode)
+        {
+            case VertexMode.Inactive:
+                HandleInactiveMode(keyDown);
+                break;
+            case VertexMode.Positioning:
+                HandlePositioningMode(keyDown, leftMousePressed);
+                break;
+            case VertexMode.Snapping:
+                HandleSnappingMode(keyDown, leftMousePressed);
+                break;
+        }
+    }
+
+    private void OnDestroy()
+    {
+        LevelEditorApi.EnteredLevelEditor -= EnteredLevelEditor;
+        LevelEditorApi.ExitedLevelEditor -= ExitedLevelEditor;
+
+        RestoreAllVisibility();
+        DestroyHologram();
+    }
+
+    private void SetMode(VertexMode newMode, string reason)
+    {
+        if (currentMode == newMode)
+        {
+            return;
+        }
+
+        VertexMode oldMode = currentMode;
+        currentMode = newMode;
+
+        MessengerApi.Log($"[VERTEX] {oldMode} -> {newMode} ({reason})");
+    }
+
+    private void HandleModeTransitions(bool keyDown, bool leftMousePressed)
+    {
+        switch (currentMode)
+        {
+            case VertexMode.Inactive:
+                if (keyDown && central != null && central.selection.list.Count == 1 && Target != null)
+                {
+                    SetMode(VertexMode.Positioning, "Key pressed with valid selection");
+                }
+
+                break;
+
+            case VertexMode.Positioning:
+                if (keyDown && leftMousePressed && cursor != null)
+                {
+                    // Store current state and enter snapping mode
+                    storedVertexPosition = cursor.position;
+                    storedVertOffset = vertOffset;
+                    storedSelectedItem = selectedItem;
+                    SetMode(VertexMode.Snapping, "Left click while positioning cursor");
+
+                    // Clear selection to allow free roaming
+                    if (central != null)
+                    {
+                        central.selection.DeselectAllBlocks(true, "");
+                    }
+                }
+                else if (!keyDown)
+                {
+                    SetMode(VertexMode.Inactive, "Key released during positioning");
+                }
+
+                break;
+
+            case VertexMode.Snapping:
+                if (leftMousePressed && hologram != null)
+                {
+                    // Confirm the snap
+                    PerformSnap();
+                    SetMode(VertexMode.Inactive, "Snap confirmed with left click");
+                }
+                // Exit snapping mode with Escape or right click
+                else if (Input.GetKeyDown(KeyCode.Escape))
+                {
+                    SetMode(VertexMode.Inactive, "Escape key pressed");
+                }
+
+                break;
+        }
+    }
+
+    private void HandleInactiveMode(bool keyDown)
+    {
+        if (!keyDown)
+        {
+            DestroyCursor();
+            DestroyHologram();
+        }
+    }
+
+    private void HandlePositioningMode(bool keyDown, bool leftMousePressed)
+    {
         if (!keyDown)
         {
             DestroyCursor();
             return;
         }
 
-        if (central == null)
+        if (central == null || central.selection.list.Count != 1 || Target == null)
         {
-            return;
-        }
-
-        if (central.selection.list.Count != 1)
-        {
-            return;
-        }
-
-        if (Target == null)
-        {
+            SetMode(VertexMode.Inactive, "Lost valid selection during positioning");
             return;
         }
 
         CreateCursor();
 
         Ray ray = cam.ScreenPointToRay(Input.mousePosition);
-        if (isDragging || ShouldHandleDragging(ray))
-        {
-            HandleDragging(ray);
-            return;
-        }
-
         if (!TryGetWorldPoint(ray, out Vector3 worldPoint))
         {
             return;
@@ -137,149 +247,217 @@ public class Plugin : BaseUnityPlugin
         CalculateVertOffset();
     }
 
-    private void OnDestroy()
+    private void HandleSnappingMode(bool keyDown, bool leftMousePressed)
     {
-        LevelEditorApi.EnteredLevelEditor -= EnteredLevelEditor;
-        LevelEditorApi.ExitedLevelEditor -= ExitedLevelEditor;
-        
-        // Clean up materials
-        RestoreAllMaterials();
+        // Keep cursor at stored position
+        if (cursor != null)
+        {
+            cursor.position = storedVertexPosition;
+        }
+        else
+        {
+            CreateCursor();
+            cursor.position = storedVertexPosition;
+        }
+
+        // Handle hologram
+        if (keyDown)
+        {
+            Ray ray = cam.ScreenPointToRay(Input.mousePosition);
+            if (TryFindTargetVertex(ray, out Vector3 targetVertex))
+            {
+                CreateHologram();
+                Vector3 targetPosition = targetVertex + storedVertOffset;
+                hologram.transform.position = targetPosition;
+                hologram.transform.rotation = storedSelectedItem.transform.rotation;
+            }
+            else
+            {
+                DestroyHologram();
+            }
+        }
+        else
+        {
+            DestroyHologram();
+        }
+    }
+
+    private bool TryFindTargetVertex(Ray ray, out Vector3 targetVertex)
+    {
+        targetVertex = Vector3.zero;
+
+        int amountOfHits = Physics.RaycastNonAlloc(ray, hits, maxDistance.Value);
+        int min = Math.Min(MAX_HITS, amountOfHits);
+
+        for (int i = 0; i < min; i++)
+        {
+            RaycastHit hit = hits[i];
+
+            Transform hitTransform = hit.transform.root;
+            if (hitTransform == null)
+            {
+                hitTransform = hit.transform;
+            }
+
+            if (hitTransform == cursor.transform || hitTransform == hologram?.transform)
+            {
+                continue;
+            }
+
+            // Skip the original selected object
+            if (storedSelectedItem != null && (hitTransform == storedSelectedItem.transform || hitTransform.IsChildOf(storedSelectedItem.transform)))
+            {
+                continue;
+            }
+
+            if (!hitTransform.CompareTag(BLOCK_TAG))
+            {
+                continue;
+            }
+
+            MeshFilter[] hitMeshFilters = hitTransform.GetComponentsInChildren<MeshFilter>();
+            targetVertex = GetClosestVert(hitMeshFilters, hit.point);
+            return true;
+        }
+
+        return false;
+    }
+
+    private void PerformSnap()
+    {
+        if (hologram == null || storedSelectedItem == null)
+        {
+            return;
+        }
+
+        Vector3 targetPosition = hologram.transform.position;
+        float distance = Vector3.Distance(targetPosition, storedSelectedItem.transform.position);
+
+        if (distance < 0.01f)
+        {
+            DestroyHologram();
+            MessengerApi.Log("[VERTEX] Snap cancelled (too close to current position)");
+            return;
+        }
+
+        List<BlockProperties> selection = new List<BlockProperties> { storedSelectedItem };
+
+        before[0] = storedSelectedItem.ConvertBlockToJSON_v15_string(true);
+        beforeSelection[0] = selection[0].UID;
+
+        storedSelectedItem.transform.position = targetPosition;
+
+        after[0] = storedSelectedItem.ConvertBlockToJSON_v15_string(true);
+        afterSelection[0] = selection[0].UID;
+
+        Change_Collection changeCollection = central.undoRedo.ConvertBeforeAndAfterListToCollection(
+            before,
+            after,
+            selection,
+            beforeSelection,
+            afterSelection);
+
+        central.validation.BreakLock(changeCollection, "Gizmo6");
+
+        DestroyHologram();
+        MessengerApi.Log("[VERTEX] Object snapped successfully!");
+    }
+
+    private void CreateHologram()
+    {
+        if (hologram != null || storedSelectedItem == null)
+        {
+            return;
+        }
+
+        // Create a visual copy of the selected item
+        hologram = new GameObject("VertexSnapHologram");
+
+        // Copy all renderers from the original object
+        Renderer[] originalRenderers = storedSelectedItem.GetComponentsInChildren<Renderer>();
+        foreach (Renderer originalRenderer in originalRenderers)
+        {
+            GameObject hologramChild = new GameObject(originalRenderer.name + "_Hologram");
+            hologramChild.transform.SetParent(hologram.transform);
+            hologramChild.transform.localPosition = storedSelectedItem.transform.InverseTransformPoint(originalRenderer.transform.position);
+            hologramChild.transform.localRotation = Quaternion.Inverse(storedSelectedItem.transform.rotation) * originalRenderer.transform.rotation;
+            hologramChild.transform.localScale = originalRenderer.transform.lossyScale;
+
+            MeshRenderer hologramRenderer = hologramChild.AddComponent<MeshRenderer>();
+            MeshFilter hologramFilter = hologramChild.AddComponent<MeshFilter>();
+
+            // Copy mesh
+            MeshFilter originalFilter = originalRenderer.GetComponent<MeshFilter>();
+            if (originalFilter != null)
+            {
+                hologramFilter.sharedMesh = originalFilter.sharedMesh;
+            }
+
+            // Create hologram materials
+            Material[] hologramMaterials = new Material[originalRenderer.materials.Length];
+            for (int i = 0; i < originalRenderer.materials.Length; i++)
+            {
+                Material hologramMat = new Material(originalRenderer.materials[i]);
+                SetMaterialToTransparent(hologramMat);
+                Color color = hologramMat.color;
+                color.a = 0.5f;
+                hologramMat.color = color;
+                hologramMaterials[i] = hologramMat;
+            }
+
+            hologramRenderer.materials = hologramMaterials;
+        }
+    }
+
+    private void DestroyHologram()
+    {
+        if (hologram != null)
+        {
+            Destroy(hologram);
+            hologram = null;
+        }
     }
 
     private void EnteredLevelEditor()
     {
         TryFindCentral();
         isInEditor = true;
+        MessengerApi.Log("[VERTEX] Entered level editor");
     }
 
     private void ExitedLevelEditor()
     {
         isInEditor = false;
-        RestoreAllMaterials();
+        RestoreAllVisibility();
+        DestroyHologram();
+        SetMode(VertexMode.Inactive, "Exited level editor");
+        wasKeyDownLastFrame = false;
     }
 
-    private void UpdateObjectTransparency()
+
+    private void RestoreAllVisibility()
     {
-        if (cam == null) return;
-
-        // Find all building blocks in the scene
-        GameObject[] buildingBlocks = GameObject.FindGameObjectsWithTag(BLOCK_TAG);
-        
-        foreach (GameObject block in buildingBlocks)
+        foreach (Renderer renderer in hiddenRenderers)
         {
-            if (block == null) continue;
-
-            // Skip the selected item
-            if (Target != null && (block.transform == Target || block.transform.IsChildOf(Target))) 
-                continue;
-
-            float distance = Vector3.Distance(cam.transform.position, block.transform.position);
-            Renderer[] renderers = block.GetComponentsInChildren<Renderer>();
-
-            foreach (Renderer renderer in renderers)
+            if (renderer != null)
             {
-                if (renderer == null) continue;
-
-                bool shouldBeTransparent = distance > maxDistance.Value;
-                bool currentlyTransparent = outOfRangeRenderers.Contains(renderer);
-
-                if (shouldBeTransparent && !currentlyTransparent)
-                {
-                    MakeRendererTransparent(renderer);
-                }
-                else if (!shouldBeTransparent && currentlyTransparent)
-                {
-                    RestoreRendererMaterial(renderer);
-                }
-            }
-        }
-    }
-
-    private void MakeRendererTransparent(Renderer renderer)
-    {
-        if (outOfRangeRenderers.Contains(renderer)) return;
-
-        // Store original materials
-        if (!originalMaterials.ContainsKey(renderer))
-        {
-            originalMaterials[renderer] = renderer.materials;
-        }
-
-        // Create transparent versions
-        Material[] transparentMats = new Material[renderer.materials.Length];
-        for (int i = 0;i < renderer.materials.Length; i++)
-        {
-            Material originalMat = renderer.materials[i];
-            Material transparentMat = new Material(originalMat);
-            
-            // Make material transparent
-            SetMaterialToTransparent(transparentMat);
-            
-            // Set alpha to 0.5 (half transparent)
-            Color color = transparentMat.color;
-            color.a = 0.5f;
-            transparentMat.color = color;
-            
-            transparentMats[i] = transparentMat;
-        }
-
-        transparentMaterials[renderer] = transparentMats;
-        renderer.materials = transparentMats;
-        outOfRangeRenderers.Add(renderer);
-    }
-
-    private void RestoreRendererMaterial(Renderer renderer)
-    {
-        if (!outOfRangeRenderers.Contains(renderer)) return;
-
-        if (originalMaterials.ContainsKey(renderer))
-        {
-            renderer.materials = originalMaterials[renderer];
-        }
-
-        // Clean up transparent materials
-        if (transparentMaterials.ContainsKey(renderer))
-        {
-            foreach (Material mat in transparentMaterials[renderer])
-            {
-                if (mat != null) Destroy(mat);
-            }
-            transparentMaterials.Remove(renderer);
-        }
-
-        outOfRangeRenderers.Remove(renderer);
-    }
-
-    private void RestoreAllMaterials()
-    {
-        foreach (Renderer renderer in new HashSet<Renderer>(outOfRangeRenderers))
-        {
-            RestoreRendererMaterial(renderer);
-        }
-
-        // Clean up remaining materials
-        foreach (var kvp in transparentMaterials)
-        {
-            foreach (Material mat in kvp.Value)
-            {
-                if (mat != null) Destroy(mat);
+                renderer.enabled = true;
             }
         }
 
-        originalMaterials.Clear();
-        transparentMaterials.Clear();
-        outOfRangeRenderers.Clear();
+        hiddenRenderers.Clear();
     }
 
     private void SetMaterialToTransparent(Material material)
     {
         material.SetOverrideTag("RenderType", "Transparent");
-        material.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
-        material.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
-        material.SetInt("_ZWrite", 0);
-        material.DisableKeyword("_ALPHATEST_ON");
-        material.EnableKeyword("_ALPHABLEND_ON");
-        material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+        // material.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
+        // material.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
+        // material.SetInt("_ZWrite", 0);
+        // material.DisableKeyword("_ALPHATEST_ON");
+        // material.EnableKeyword("_ALPHABLEND_ON");
+        // material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+ 
         material.renderQueue = (int)RenderQueue.Transparent;
     }
 
@@ -298,17 +476,12 @@ public class Plugin : BaseUnityPlugin
             return;
         }
 
-        void ToFadeMode(Material material)
-        {
-            SetMaterialToTransparent(material);
-        }
-
         cursor = GameObject.CreatePrimitive(PrimitiveType.Sphere).transform;
         cursor.localScale = Vector3.one * selectionRadius.Value;
         Renderer ren = cursor.GetComponent<Renderer>();
         ren.material = new Material(Shader.Find("Standard"));
         ren.material.color = new Color(1, 1, 1, 0.75f);
-        ToFadeMode(ren.material);
+        SetMaterialToTransparent(ren.material);
         Collider col = cursor.GetComponent<Collider>();
         col.enabled = false;
     }
@@ -348,98 +521,6 @@ public class Plugin : BaseUnityPlugin
         {
             selectedItem = null;
             meshFilters = null;
-        }
-    }
-
-    private bool ShouldHandleDragging(Ray ray)
-    {
-        if (Target == null)
-        {
-            return false;
-        }
-
-        if (!Input.GetMouseButton(0))
-        {
-            return false;
-        }
-
-        Vector3 normal = (cam.transform.position - Target.transform.position).normalized;
-        Plane plane = new Plane(normal, cursor.position);
-        if (!plane.Raycast(ray, out float enter))
-        {
-            return false;
-        }
-
-        Vector3 pointOnPlane = ray.GetPoint(enter);
-        float distance = Vector3.Distance(pointOnPlane, cursor.position);
-        return distance <= selectionRadius.Value;
-    }
-
-    private void HandleDragging(Ray ray)
-    {
-        isDragging = true;
-
-        int amountOfHits = Physics.RaycastNonAlloc(ray, hits, maxDistance.Value);
-        int min = Math.Min(MAX_HITS, amountOfHits);
-        for (int i = 0; i < min; i++)
-        {
-            RaycastHit hit = hits[i];
-
-            Transform hitTransform = hit.transform.root;
-            if (hitTransform == null)
-            {
-                hitTransform = hit.transform;
-            }
-
-            if (hitTransform == cursor.transform)
-            {
-                continue;
-            }
-
-            if (hitTransform == Target || hitTransform.IsChildOf(Target))
-            {
-                continue;
-            }
-
-            if (!hitTransform.CompareTag(BLOCK_TAG))
-            {
-                continue;
-            }
-
-            MeshFilter[] hitMeshFilters = hitTransform.GetComponentsInChildren<MeshFilter>();
-            Vector3 closestVert = GetClosestVert(hitMeshFilters, hit.point);
-
-            Vector3 targetPosition = closestVert + vertOffset;
-
-            float distance = Vector3.Distance(targetPosition, Target.position);
-            if (distance < 0.01f)
-            {
-                continue;
-            }
-
-            List<BlockProperties> selection = new List<BlockProperties> { selectedItem };
-
-            before[0] = selectedItem.ConvertBlockToJSON_v15_string(true);
-            beforeSelection[0] = selection[0].UID;
-
-            Target.position = targetPosition;
-
-            after[0] = selectedItem.ConvertBlockToJSON_v15_string(true);
-            afterSelection[0] = selection[0].UID;
-
-            Change_Collection changeCollection = central.undoRedo.ConvertBeforeAndAfterListToCollection(
-                before,
-                after,
-                selection,
-                beforeSelection,
-                afterSelection);
-
-            central.validation.BreakLock(changeCollection, "Gizmo6");
-        }
-
-        if (!Input.GetMouseButton(0))
-        {
-            isDragging = false;
         }
     }
 
@@ -507,5 +588,13 @@ public class Plugin : BaseUnityPlugin
         Logger.LogWarning("Unable to get world point");
         worldPoint = Vector3.zero;
         return false;
+    }
+
+    // New vertex mode system
+    private enum VertexMode
+    {
+        Inactive,
+        Positioning, // Phase 1: Positioning the cursor on selected object
+        Snapping // Phase 2: Roaming around to find target location
     }
 }
