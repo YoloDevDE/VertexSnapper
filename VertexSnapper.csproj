@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- General Project Properties -->
+    <PropertyGroup>
+        <TargetFramework>net472</TargetFramework>
+        <Description>a</Description>
+        <Version>1.17.0</Version>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <LangVersion>latest</LangVersion>
+        <PackageId>VertexSnapper</PackageId>
+        <RestoreAdditionalProjectSources>
+            https://api.nuget.org/v3/index.json;
+            https://nuget.bepinex.dev/v3/index.json;
+            https://nuget.samboy.dev/v3/index.json
+        </RestoreAdditionalProjectSources>
+        <Authors>Thundernerd</Authors>
+        <Title>VertexSnapper</Title>
+        <ImplicitUsings>disable</ImplicitUsings>
+    </PropertyGroup>
+
+    <!-- Package References -->
+    <ItemGroup>
+        <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all"/>
+        <PackageReference Include="BepInEx.Core" Version="5.*"/>
+        <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*"/>
+        <PackageReference Include="Zeepkist.GameLibs" Version="17.12.1825" />
+        <PackageReference Include="ZeepSDK" Version="1.45.1" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
+        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Reference Include="Microsoft.CSharp"/>
+    </ItemGroup>
+
+    <!-- Post-Build Scripts -->
+    <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+        <!-- Delete the plugin directory if it exists -->
+        <RemoveDir Directories="C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)"/>
+
+        <!-- Create the plugin directory -->
+        <MakeDir Directories="C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)"/>
+
+        <!-- Copy DLL to the plugin directory -->
+        <Exec Command="copy /Y &quot;$(TargetDir)$(ProjectName).dll&quot; &quot;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)\$(ProjectName)-$(Version).dll&quot;"/>
+
+        <!-- Create a zip file from the directory -->
+        <Exec Command="powershell -Command &quot;Compress-Archive -Path &quot;&apos;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)\*&apos;&quot; -DestinationPath &quot;&apos;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)-$(Version).zip&apos;&quot; -Force&quot;"/>
+    </Target>
+
+    <!-- Enable debug logging -->
+    <PropertyGroup>
+        <DefineConstants>DEBUG;TRACE</DefineConstants>
+    </PropertyGroup>
+</Project>
