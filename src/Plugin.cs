@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using BepInEx;
 using BepInEx.Configuration;
 using UnityEngine;
@@ -18,10 +19,10 @@ public class Plugin : BaseUnityPlugin
 
     private static readonly RaycastHit[] hits = new RaycastHit[MAX_HITS];
 
-    private static readonly List<string> before = new List<string> { string.Empty };
-    private static readonly List<string> beforeSelection = new List<string> { string.Empty };
-    private static readonly List<string> after = new List<string> { string.Empty };
-    private static readonly List<string> afterSelection = new List<string> { string.Empty };
+    private static readonly List<string> before = new List<string>();
+    private static readonly List<string> beforeSelection = new List<string>();
+    private static readonly List<string> after = new List<string>();
+    private static readonly List<string> afterSelection = new List<string>();
     private Camera cam;
 
     private LEV_LevelEditorCentral central;
@@ -32,7 +33,7 @@ public class Plugin : BaseUnityPlugin
 
     // Simplified visibility management
     private readonly HashSet<Renderer> hiddenRenderers = new HashSet<Renderer>();
-    private GameObject hologram;
+    private readonly List<GameObject> holograms = new List<GameObject>();
     private bool isDragging;
 
     private bool isInEditor;
@@ -40,16 +41,18 @@ public class Plugin : BaseUnityPlugin
     private float lastVisibilityUpdateTime;
     private ConfigEntry<float> maxDistance;
     private MeshFilter[] meshFilters;
-    private BlockProperties selectedItem;
+    private readonly List<BlockProperties> selectedItems = new List<BlockProperties>();
 
     private ConfigEntry<float> selectionRadius;
-    private BlockProperties storedSelectedItem;
+    private readonly List<Vector3> storedRelativePositions = new List<Vector3>();
+    private readonly List<BlockProperties> storedSelectedItems = new List<BlockProperties>();
     private Vector3 storedVertexPosition;
     private Vector3 storedVertOffset;
     private Vector3 vertOffset;
     private bool wasKeyDownLastFrame;
 
-    private Transform Target => selectedItem == null ? null : selectedItem.transform;
+    // Use the first selected item as the primary target for cursor positioning
+    private Transform Target => selectedItems.Count > 0 ? selectedItems[0].transform : null;
 
     private void Awake()
     {
@@ -106,7 +109,7 @@ public class Plugin : BaseUnityPlugin
 
             if (keyDown && Time.time - lastVisibilityUpdateTime > VISIBILITY_UPDATE_INTERVAL)
             {
-             
+                UpdateObjectVisibility();
                 lastVisibilityUpdateTime = Time.time;
             }
         }
@@ -145,7 +148,7 @@ public class Plugin : BaseUnityPlugin
         LevelEditorApi.ExitedLevelEditor -= ExitedLevelEditor;
 
         RestoreAllVisibility();
-        DestroyHologram();
+        DestroyAllHolograms();
     }
 
     private void SetMode(VertexMode newMode, string reason)
@@ -166,9 +169,9 @@ public class Plugin : BaseUnityPlugin
         switch (currentMode)
         {
             case VertexMode.Inactive:
-                if (keyDown && central != null && central.selection.list.Count == 1 && Target != null)
+                if (keyDown && central != null && selectedItems.Count > 0 && Target != null)
                 {
-                    SetMode(VertexMode.Positioning, "Key pressed with valid selection");
+                    SetMode(VertexMode.Positioning, $"Key pressed with {selectedItems.Count} object(s) selected");
                 }
 
                 break;
@@ -179,8 +182,18 @@ public class Plugin : BaseUnityPlugin
                     // Store current state and enter snapping mode
                     storedVertexPosition = cursor.position;
                     storedVertOffset = vertOffset;
-                    storedSelectedItem = selectedItem;
-                    SetMode(VertexMode.Snapping, "Left click while positioning cursor");
+                    storedSelectedItems.Clear();
+                    storedSelectedItems.AddRange(selectedItems);
+
+                    // Calculate relative positions of all selected objects to the primary object
+                    storedRelativePositions.Clear();
+                    Vector3 primaryPosition = Target.position;
+                    foreach (BlockProperties item in storedSelectedItems)
+                    {
+                        storedRelativePositions.Add(item.transform.position - primaryPosition);
+                    }
+
+                    SetMode(VertexMode.Snapping, $"Left click while positioning cursor ({storedSelectedItems.Count} objects stored)");
 
                     // Clear selection to allow free roaming
                     if (central != null)
@@ -196,16 +209,20 @@ public class Plugin : BaseUnityPlugin
                 break;
 
             case VertexMode.Snapping:
-                if (leftMousePressed && hologram != null)
+                if (leftMousePressed && holograms.Count > 0)
                 {
                     // Confirm the snap
                     PerformSnap();
-                    SetMode(VertexMode.Inactive, "Snap confirmed with left click");
+                    SetMode(VertexMode.Inactive, $"Snap confirmed with left click ({storedSelectedItems.Count} objects moved)");
                 }
                 // Exit snapping mode with Escape or right click
                 else if (Input.GetKeyDown(KeyCode.Escape))
                 {
                     SetMode(VertexMode.Inactive, "Escape key pressed");
+                }
+                else if (Input.GetMouseButtonDown(2))
+                {
+                    SetMode(VertexMode.Inactive, "Middle click to cancel");
                 }
 
                 break;
@@ -217,7 +234,7 @@ public class Plugin : BaseUnityPlugin
         if (!keyDown)
         {
             DestroyCursor();
-            DestroyHologram();
+            DestroyAllHolograms();
         }
     }
 
@@ -229,7 +246,7 @@ public class Plugin : BaseUnityPlugin
             return;
         }
 
-        if (central == null || central.selection.list.Count != 1 || Target == null)
+        if (central == null || selectedItems.Count == 0 || Target == null)
         {
             SetMode(VertexMode.Inactive, "Lost valid selection during positioning");
             return;
@@ -260,25 +277,45 @@ public class Plugin : BaseUnityPlugin
             cursor.position = storedVertexPosition;
         }
 
-        // Handle hologram
+        // Handle holograms
         if (keyDown)
         {
             Ray ray = cam.ScreenPointToRay(Input.mousePosition);
             if (TryFindTargetVertex(ray, out Vector3 targetVertex))
             {
-                CreateHologram();
-                Vector3 targetPosition = targetVertex + storedVertOffset;
-                hologram.transform.position = targetPosition;
-                hologram.transform.rotation = storedSelectedItem.transform.rotation;
+                CreateAllHolograms();
+                UpdateHologramPositions(targetVertex);
             }
             else
             {
-                DestroyHologram();
+                DestroyAllHolograms();
             }
         }
         else
         {
-            DestroyHologram();
+            DestroyAllHolograms();
+        }
+    }
+
+    private void UpdateHologramPositions(Vector3 targetVertex)
+    {
+        if (holograms.Count != storedSelectedItems.Count)
+        {
+            return;
+        }
+
+        // Calculate the new primary position
+        Vector3 newPrimaryPosition = targetVertex + storedVertOffset;
+
+        // Update all holograms based on their stored relative positions
+        for (int i = 0; i < holograms.Count; i++)
+        {
+            if (holograms[i] != null)
+            {
+                Vector3 newPosition = newPrimaryPosition + storedRelativePositions[i];
+                holograms[i].transform.position = newPosition;
+                holograms[i].transform.rotation = storedSelectedItems[i].transform.rotation;
+            }
         }
     }
 
@@ -299,13 +336,19 @@ public class Plugin : BaseUnityPlugin
                 hitTransform = hit.transform;
             }
 
-            if (hitTransform == cursor.transform || hitTransform == hologram?.transform)
+            if (hitTransform == cursor.transform)
             {
                 continue;
             }
 
-            // Skip the original selected object
-            if (storedSelectedItem != null && (hitTransform == storedSelectedItem.transform || hitTransform.IsChildOf(storedSelectedItem.transform)))
+            // Skip hologram objects
+            if (holograms.Any(h => h != null && (hitTransform == h.transform || hitTransform.IsChildOf(h.transform))))
+            {
+                continue;
+            }
+
+            // Skip any of the original selected objects
+            if (storedSelectedItems.Any(item => item != null && (hitTransform == item.transform || hitTransform.IsChildOf(item.transform))))
             {
                 continue;
             }
@@ -325,62 +368,108 @@ public class Plugin : BaseUnityPlugin
 
     private void PerformSnap()
     {
-        if (hologram == null || storedSelectedItem == null)
+        if (holograms.Count == 0 || storedSelectedItems.Count == 0 || holograms.Count != storedSelectedItems.Count)
         {
+            MessengerApi.Log("[VERTEX] Snap failed - hologram/selection mismatch");
             return;
         }
 
-        Vector3 targetPosition = hologram.transform.position;
-        float distance = Vector3.Distance(targetPosition, storedSelectedItem.transform.position);
-
-        if (distance < 0.01f)
+        // Check if any object would move a significant distance
+        bool anySignificantMove = false;
+        for (int i = 0; i < storedSelectedItems.Count; i++)
         {
-            DestroyHologram();
-            MessengerApi.Log("[VERTEX] Snap cancelled (too close to current position)");
+            if (storedSelectedItems[i] == null || holograms[i] == null)
+            {
+                continue;
+            }
+
+            float distance = Vector3.Distance(holograms[i].transform.position, storedSelectedItems[i].transform.position);
+            if (distance >= 0.01f)
+            {
+                anySignificantMove = true;
+                break;
+            }
+        }
+
+        if (!anySignificantMove)
+        {
+            DestroyAllHolograms();
+            MessengerApi.Log("[VERTEX] Snap cancelled (too close to current positions)");
             return;
         }
 
-        List<BlockProperties> selection = new List<BlockProperties> { storedSelectedItem };
+        // Prepare undo/redo data
+        before.Clear();
+        beforeSelection.Clear();
+        after.Clear();
+        afterSelection.Clear();
 
-        before[0] = storedSelectedItem.ConvertBlockToJSON_v15_string(true);
-        beforeSelection[0] = selection[0].UID;
+        // Record before state and move objects
+        for (int i = 0; i < storedSelectedItems.Count; i++)
+        {
+            if (storedSelectedItems[i] == null || holograms[i] == null)
+            {
+                continue;
+            }
 
-        storedSelectedItem.transform.position = targetPosition;
+            before.Add(storedSelectedItems[i].ConvertBlockToJSON_v15_string(true));
+            beforeSelection.Add(storedSelectedItems[i].UID);
 
-        after[0] = storedSelectedItem.ConvertBlockToJSON_v15_string(true);
-        afterSelection[0] = selection[0].UID;
+            storedSelectedItems[i].transform.position = holograms[i].transform.position;
 
-        Change_Collection changeCollection = central.undoRedo.ConvertBeforeAndAfterListToCollection(
-            before,
-            after,
-            selection,
-            beforeSelection,
-            afterSelection);
+            after.Add(storedSelectedItems[i].ConvertBlockToJSON_v15_string(true));
+            afterSelection.Add(storedSelectedItems[i].UID);
+        }
 
-        central.validation.BreakLock(changeCollection, "Gizmo6");
+        // Create undo/redo entry
+        if (before.Count > 0)
+        {
+            Change_Collection changeCollection = central.undoRedo.ConvertBeforeAndAfterListToCollection(
+                before,
+                after,
+                storedSelectedItems,
+                beforeSelection,
+                afterSelection);
 
-        DestroyHologram();
-        MessengerApi.Log("[VERTEX] Object snapped successfully!");
+            central.validation.BreakLock(changeCollection, "Gizmo6");
+        }
+
+        DestroyAllHolograms();
+        MessengerApi.Log($"[VERTEX] {storedSelectedItems.Count} object(s) snapped successfully!");
     }
 
-    private void CreateHologram()
+    private void CreateAllHolograms()
     {
-        if (hologram != null || storedSelectedItem == null)
+        if (holograms.Count > 0 || storedSelectedItems.Count == 0)
         {
             return;
         }
 
+        foreach (BlockProperties selectedItem in storedSelectedItems)
+        {
+            if (selectedItem == null)
+            {
+                continue;
+            }
+
+            GameObject hologram = CreateHologramForItem(selectedItem);
+            holograms.Add(hologram);
+        }
+    }
+
+    private GameObject CreateHologramForItem(BlockProperties item)
+    {
         // Create a visual copy of the selected item
-        hologram = new GameObject("VertexSnapHologram");
+        GameObject hologram = new GameObject($"VertexSnapHologram_{item.name}");
 
         // Copy all renderers from the original object
-        Renderer[] originalRenderers = storedSelectedItem.GetComponentsInChildren<Renderer>();
+        Renderer[] originalRenderers = item.GetComponentsInChildren<Renderer>();
         foreach (Renderer originalRenderer in originalRenderers)
         {
             GameObject hologramChild = new GameObject(originalRenderer.name + "_Hologram");
             hologramChild.transform.SetParent(hologram.transform);
-            hologramChild.transform.localPosition = storedSelectedItem.transform.InverseTransformPoint(originalRenderer.transform.position);
-            hologramChild.transform.localRotation = Quaternion.Inverse(storedSelectedItem.transform.rotation) * originalRenderer.transform.rotation;
+            hologramChild.transform.localPosition = item.transform.InverseTransformPoint(originalRenderer.transform.position);
+            hologramChild.transform.localRotation = Quaternion.Inverse(item.transform.rotation) * originalRenderer.transform.rotation;
             hologramChild.transform.localScale = originalRenderer.transform.lossyScale;
 
             MeshRenderer hologramRenderer = hologramChild.AddComponent<MeshRenderer>();
@@ -407,15 +496,21 @@ public class Plugin : BaseUnityPlugin
 
             hologramRenderer.materials = hologramMaterials;
         }
+
+        return hologram;
     }
 
-    private void DestroyHologram()
+    private void DestroyAllHolograms()
     {
-        if (hologram != null)
+        foreach (GameObject hologram in holograms)
         {
-            Destroy(hologram);
-            hologram = null;
+            if (hologram != null)
+            {
+                Destroy(hologram);
+            }
         }
+
+        holograms.Clear();
     }
 
     private void EnteredLevelEditor()
@@ -429,11 +524,59 @@ public class Plugin : BaseUnityPlugin
     {
         isInEditor = false;
         RestoreAllVisibility();
-        DestroyHologram();
+        DestroyAllHolograms();
         SetMode(VertexMode.Inactive, "Exited level editor");
         wasKeyDownLastFrame = false;
     }
 
+    private void UpdateObjectVisibility()
+    {
+        if (cam == null)
+        {
+            return;
+        }
+
+        GameObject[] buildingBlocks = GameObject.FindGameObjectsWithTag(BLOCK_TAG);
+
+        foreach (GameObject block in buildingBlocks)
+        {
+            if (block == null)
+            {
+                continue;
+            }
+
+            // Skip any selected items
+            if (selectedItems.Any(item => item != null && (block.transform == item.transform || block.transform.IsChildOf(item.transform))))
+            {
+                continue;
+            }
+
+            float distance = Vector3.Distance(cam.transform.position, block.transform.position);
+            Renderer[] renderers = block.GetComponentsInChildren<Renderer>();
+
+            foreach (Renderer renderer in renderers)
+            {
+                if (!renderer)
+                {
+                    continue;
+                }
+
+                bool shouldBeHidden = distance > maxDistance.Value;
+                bool currentlyHidden = hiddenRenderers.Contains(renderer);
+
+                if (shouldBeHidden && !currentlyHidden)
+                {
+                    renderer.enabled = false;
+                    hiddenRenderers.Add(renderer);
+                }
+                else if (!shouldBeHidden && currentlyHidden)
+                {
+                    renderer.enabled = true;
+                    hiddenRenderers.Remove(renderer);
+                }
+            }
+        }
+    }
 
     private void RestoreAllVisibility()
     {
@@ -451,13 +594,12 @@ public class Plugin : BaseUnityPlugin
     private void SetMaterialToTransparent(Material material)
     {
         material.SetOverrideTag("RenderType", "Transparent");
-        // material.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
-        // material.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
-        // material.SetInt("_ZWrite", 0);
-        // material.DisableKeyword("_ALPHATEST_ON");
-        // material.EnableKeyword("_ALPHABLEND_ON");
-        // material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
- 
+        material.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
+        material.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
+        material.SetInt("_ZWrite", 0);
+        material.DisableKeyword("_ALPHATEST_ON");
+        material.EnableKeyword("_ALPHABLEND_ON");
+        material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
         material.renderQueue = (int)RenderQueue.Transparent;
     }
 
@@ -512,21 +654,30 @@ public class Plugin : BaseUnityPlugin
 
     private void ProcessItemSelection()
     {
-        if (central.selection.list.Count == 1)
+        selectedItems.Clear();
+
+        if (central != null && central.selection.list.Count > 0)
         {
-            selectedItem = central.selection.list[0];
-            meshFilters = Target.GetComponentsInChildren<MeshFilter>();
+            selectedItems.AddRange(central.selection.list);
+
+            // Use the first selected item for mesh filters (cursor positioning)
+            if (Target != null)
+            {
+                meshFilters = Target.GetComponentsInChildren<MeshFilter>();
+            }
         }
         else
         {
-            selectedItem = null;
             meshFilters = null;
         }
     }
 
     private void CalculateVertOffset()
     {
-        vertOffset = Target.position - cursor.position;
+        if (Target != null)
+        {
+            vertOffset = Target.position - cursor.position;
+        }
     }
 
     private Vector3 GetClosestVert(IEnumerable<MeshFilter> meshFilters, Vector3 target)
@@ -563,7 +714,8 @@ public class Plugin : BaseUnityPlugin
                 continue;
             }
 
-            if (hit.transform != Target && !hit.transform.IsChildOf(Target))
+            // Check if hit belongs to any selected item
+            if (!selectedItems.Any(item => item != null && (hit.transform == item.transform || hit.transform.IsChildOf(item.transform))))
             {
                 continue;
             }
@@ -577,12 +729,16 @@ public class Plugin : BaseUnityPlugin
             return true;
         }
 
-        Vector3 normal = (cam.transform.position - Target.transform.position).normalized;
-        Plane p = new Plane(normal, Target.transform.position);
-        if (p.Raycast(ray, out float enter))
+        // Fallback to plane intersection with the primary target
+        if (Target != null)
         {
-            worldPoint = ray.GetPoint(enter);
-            return true;
+            Vector3 normal = (cam.transform.position - Target.transform.position).normalized;
+            Plane p = new Plane(normal, Target.transform.position);
+            if (p.Raycast(ray, out float enter))
+            {
+                worldPoint = ray.GetPoint(enter);
+                return true;
+            }
         }
 
         Logger.LogWarning("Unable to get world point");
