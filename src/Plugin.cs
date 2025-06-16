@@ -28,6 +28,7 @@ public class Plugin : BaseUnityPlugin
     private LEV_LevelEditorCentral central;
 
     private VertexMode currentMode = VertexMode.Inactive;
+    private BlockProperties currentTarget; // The object we're currently pointing at
 
     private Transform cursor;
 
@@ -39,11 +40,11 @@ public class Plugin : BaseUnityPlugin
     private bool isInEditor;
     private ConfigEntry<KeyCode> key;
     private float lastVisibilityUpdateTime;
-    private ConfigEntry<float> maxDistance;
     private MeshFilter[] meshFilters;
     private readonly List<BlockProperties> selectedItems = new List<BlockProperties>();
 
     private ConfigEntry<float> selectionRadius;
+    private BlockProperties storedPrimaryTarget; // The object that was used as anchor
     private readonly List<Vector3> storedRelativePositions = new List<Vector3>();
     private readonly List<BlockProperties> storedSelectedItems = new List<BlockProperties>();
     private Vector3 storedVertexPosition;
@@ -51,8 +52,7 @@ public class Plugin : BaseUnityPlugin
     private Vector3 vertOffset;
     private bool wasKeyDownLastFrame;
 
-    // Use the first selected item as the primary target for cursor positioning
-    private Transform Target => selectedItems.Count > 0 ? selectedItems[0].transform : null;
+    private Transform Target => currentTarget?.transform;
 
     private void Awake()
     {
@@ -65,11 +65,6 @@ public class Plugin : BaseUnityPlugin
             "Selection Radiuses",
             0.5f);
 
-        maxDistance = Config.Bind("General",
-            "Max Distance",
-            300.0f,
-            "Maximum Distance from camera to look for vertices"
-        );
 
         key = Config.Bind("Keybinds",
             "Activation Key",
@@ -86,6 +81,12 @@ public class Plugin : BaseUnityPlugin
 
         bool keyDown = Input.GetKey(key.Value);
         bool leftMousePressed = Input.GetMouseButtonDown(0);
+
+        // Update current target based on what we're pointing at
+        if (currentMode == VertexMode.Positioning)
+        {
+            UpdateCurrentTarget();
+        }
 
         // Handle mode transitions
         HandleModeTransitions(keyDown, leftMousePressed);
@@ -105,12 +106,6 @@ public class Plugin : BaseUnityPlugin
                 }
 
                 wasKeyDownLastFrame = keyDown;
-            }
-
-            if (keyDown && Time.time - lastVisibilityUpdateTime > VISIBILITY_UPDATE_INTERVAL)
-            {
-                UpdateObjectVisibility();
-                lastVisibilityUpdateTime = Time.time;
             }
         }
 
@@ -151,6 +146,64 @@ public class Plugin : BaseUnityPlugin
         DestroyAllHolograms();
     }
 
+    private void UpdateCurrentTarget()
+    {
+        if (selectedItems.Count == 0)
+        {
+            return;
+        }
+
+        Ray ray = cam.ScreenPointToRay(Input.mousePosition);
+        int amountOfHits = Physics.RaycastNonAlloc(ray, hits);
+        int min = Math.Min(MAX_HITS, amountOfHits);
+
+        BlockProperties newTarget = null;
+
+        for (int i = 0; i < min; i++)
+        {
+            RaycastHit hit = hits[i];
+
+            if (hit.transform == cursor?.transform)
+            {
+                continue;
+            }
+
+            // Check if this hit belongs to any of our selected items
+            foreach (BlockProperties item in selectedItems)
+            {
+                if (item != null && (hit.transform == item.transform || hit.transform.IsChildOf(item.transform)))
+                {
+                    newTarget = item;
+                    break;
+                }
+            }
+
+            if (newTarget != null)
+            {
+                break;
+            }
+        }
+
+        // If we didn't hit any selected object, keep the current target or use the first one
+        if (newTarget == null)
+        {
+            if (currentTarget == null || !selectedItems.Contains(currentTarget))
+            {
+                currentTarget = selectedItems.FirstOrDefault();
+            }
+        }
+        else if (newTarget != currentTarget)
+        {
+            currentTarget = newTarget;
+            // Update mesh filters when target changes
+            if (Target != null)
+            {
+                meshFilters = Target.GetComponentsInChildren<MeshFilter>();
+                MessengerApi.Log($"[VERTEX] Target switched to: {currentTarget.name}");
+            }
+        }
+    }
+
     private void SetMode(VertexMode newMode, string reason)
     {
         if (currentMode == newMode)
@@ -169,31 +222,42 @@ public class Plugin : BaseUnityPlugin
         switch (currentMode)
         {
             case VertexMode.Inactive:
-                if (keyDown && central != null && selectedItems.Count > 0 && Target != null)
+                if (keyDown && central != null && selectedItems.Count > 0)
                 {
+                    // Set initial target to first selected item if none is set
+                    if (currentTarget == null || !selectedItems.Contains(currentTarget))
+                    {
+                        currentTarget = selectedItems.FirstOrDefault();
+                        if (Target != null)
+                        {
+                            meshFilters = Target.GetComponentsInChildren<MeshFilter>();
+                        }
+                    }
+
                     SetMode(VertexMode.Positioning, $"Key pressed with {selectedItems.Count} object(s) selected");
                 }
 
                 break;
 
             case VertexMode.Positioning:
-                if (keyDown && leftMousePressed && cursor != null)
+                if (keyDown && leftMousePressed && cursor != null && currentTarget != null)
                 {
                     // Store current state and enter snapping mode
                     storedVertexPosition = cursor.position;
                     storedVertOffset = vertOffset;
+                    storedPrimaryTarget = currentTarget;
                     storedSelectedItems.Clear();
                     storedSelectedItems.AddRange(selectedItems);
 
-                    // Calculate relative positions of all selected objects to the primary object
+                    // Calculate relative positions of all selected objects to the current target
                     storedRelativePositions.Clear();
-                    Vector3 primaryPosition = Target.position;
+                    Vector3 primaryPosition = storedPrimaryTarget.transform.position;
                     foreach (BlockProperties item in storedSelectedItems)
                     {
                         storedRelativePositions.Add(item.transform.position - primaryPosition);
                     }
 
-                    SetMode(VertexMode.Snapping, $"Left click while positioning cursor ({storedSelectedItems.Count} objects stored)");
+                    SetMode(VertexMode.Snapping, $"Left click while positioning cursor on {currentTarget.name} ({storedSelectedItems.Count} objects stored)");
 
                     // Clear selection to allow free roaming
                     if (central != null)
@@ -235,6 +299,7 @@ public class Plugin : BaseUnityPlugin
         {
             DestroyCursor();
             DestroyAllHolograms();
+            currentTarget = null;
         }
     }
 
@@ -243,6 +308,7 @@ public class Plugin : BaseUnityPlugin
         if (!keyDown)
         {
             DestroyCursor();
+            currentTarget = null;
             return;
         }
 
@@ -299,12 +365,12 @@ public class Plugin : BaseUnityPlugin
 
     private void UpdateHologramPositions(Vector3 targetVertex)
     {
-        if (holograms.Count != storedSelectedItems.Count)
+        if (holograms.Count != storedSelectedItems.Count || storedPrimaryTarget == null)
         {
             return;
         }
 
-        // Calculate the new primary position
+        // Calculate the new primary position based on the stored primary target
         Vector3 newPrimaryPosition = targetVertex + storedVertOffset;
 
         // Update all holograms based on their stored relative positions
@@ -323,7 +389,7 @@ public class Plugin : BaseUnityPlugin
     {
         targetVertex = Vector3.zero;
 
-        int amountOfHits = Physics.RaycastNonAlloc(ray, hits, maxDistance.Value);
+        int amountOfHits = Physics.RaycastNonAlloc(ray, hits);
         int min = Math.Min(MAX_HITS, amountOfHits);
 
         for (int i = 0; i < min; i++)
@@ -489,7 +555,7 @@ public class Plugin : BaseUnityPlugin
                 Material hologramMat = new Material(originalRenderer.materials[i]);
                 SetMaterialToTransparent(hologramMat);
                 Color color = hologramMat.color;
-                color.a = 0.5f;
+                color.a = 0.1f;
                 hologramMat.color = color;
                 hologramMaterials[i] = hologramMat;
             }
@@ -526,57 +592,10 @@ public class Plugin : BaseUnityPlugin
         RestoreAllVisibility();
         DestroyAllHolograms();
         SetMode(VertexMode.Inactive, "Exited level editor");
+        currentTarget = null;
         wasKeyDownLastFrame = false;
     }
 
-    private void UpdateObjectVisibility()
-    {
-        if (cam == null)
-        {
-            return;
-        }
-
-        GameObject[] buildingBlocks = GameObject.FindGameObjectsWithTag(BLOCK_TAG);
-
-        foreach (GameObject block in buildingBlocks)
-        {
-            if (block == null)
-            {
-                continue;
-            }
-
-            // Skip any selected items
-            if (selectedItems.Any(item => item != null && (block.transform == item.transform || block.transform.IsChildOf(item.transform))))
-            {
-                continue;
-            }
-
-            float distance = Vector3.Distance(cam.transform.position, block.transform.position);
-            Renderer[] renderers = block.GetComponentsInChildren<Renderer>();
-
-            foreach (Renderer renderer in renderers)
-            {
-                if (!renderer)
-                {
-                    continue;
-                }
-
-                bool shouldBeHidden = distance > maxDistance.Value;
-                bool currentlyHidden = hiddenRenderers.Contains(renderer);
-
-                if (shouldBeHidden && !currentlyHidden)
-                {
-                    renderer.enabled = false;
-                    hiddenRenderers.Add(renderer);
-                }
-                else if (!shouldBeHidden && currentlyHidden)
-                {
-                    renderer.enabled = true;
-                    hiddenRenderers.Remove(renderer);
-                }
-            }
-        }
-    }
 
     private void RestoreAllVisibility()
     {
@@ -659,17 +678,11 @@ public class Plugin : BaseUnityPlugin
         if (central != null && central.selection.list.Count > 0)
         {
             selectedItems.AddRange(central.selection.list);
+        }
 
-            // Use the first selected item for mesh filters (cursor positioning)
-            if (Target != null)
-            {
-                meshFilters = Target.GetComponentsInChildren<MeshFilter>();
-            }
-        }
-        else
-        {
-            meshFilters = null;
-        }
+        // Reset current target when selection changes
+        currentTarget = null;
+        meshFilters = null;
     }
 
     private void CalculateVertOffset()
@@ -714,22 +727,18 @@ public class Plugin : BaseUnityPlugin
                 continue;
             }
 
-            // Check if hit belongs to any selected item
-            if (!selectedItems.Any(item => item != null && (hit.transform == item.transform || hit.transform.IsChildOf(item.transform))))
+            // Check if hit belongs to the current target
+            if (currentTarget != null && (hit.transform == currentTarget.transform || hit.transform.IsChildOf(currentTarget.transform)))
             {
-                continue;
+                if (hit.transform.CompareTag(BLOCK_TAG))
+                {
+                    worldPoint = hit.point;
+                    return true;
+                }
             }
-
-            if (!hit.transform.CompareTag(BLOCK_TAG))
-            {
-                continue;
-            }
-
-            worldPoint = hit.point;
-            return true;
         }
 
-        // Fallback to plane intersection with the primary target
+        // Fallback to plane intersection with the current target
         if (Target != null)
         {
             Vector3 normal = (cam.transform.position - Target.transform.position).normalized;
