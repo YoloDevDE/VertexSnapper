@@ -16,6 +16,9 @@ public class Plugin : BaseUnityPlugin
     private const int MAX_HITS = 16;
     private const string BLOCK_TAG = "BuildingBlock";
     private const float VISIBILITY_UPDATE_INTERVAL = 0.1f;
+    private const float PULSE_SPEED = 6f; // Speed of the pulse
+    private const float MIN_ALPHA = 0.2f; // Minimum opacity
+    private const float MAX_ALPHA = 0.8f; // Maximum opacity
 
     private static readonly RaycastHit[] hits = new RaycastHit[MAX_HITS];
 
@@ -23,6 +26,17 @@ public class Plugin : BaseUnityPlugin
     private static readonly List<string> beforeSelection = new List<string>();
     private static readonly List<string> after = new List<string>();
     private static readonly List<string> afterSelection = new List<string>();
+
+    // Simplified visibility management
+    private readonly HashSet<Renderer> hiddenRenderers = new HashSet<Renderer>();
+    private readonly List<GameObject> holograms = new List<GameObject>();
+
+    // Add these fields with your other private fields
+    private readonly Dictionary<Renderer, Material[]> originalMaterials = new Dictionary<Renderer, Material[]>();
+    private readonly List<Renderer> originRenderers = new List<Renderer>();
+    private readonly List<BlockProperties> selectedItems = new List<BlockProperties>();
+    private readonly List<Vector3> storedRelativePositions = new List<Vector3>();
+    private readonly List<BlockProperties> storedSelectedItems = new List<BlockProperties>();
     private Camera cam;
 
     private LEV_LevelEditorCentral central;
@@ -31,22 +45,18 @@ public class Plugin : BaseUnityPlugin
     private BlockProperties currentTarget; // The object we're currently pointing at
 
     private Transform cursor;
-
-    // Simplified visibility management
-    private readonly HashSet<Renderer> hiddenRenderers = new HashSet<Renderer>();
-    private readonly List<GameObject> holograms = new List<GameObject>();
     private bool isDragging;
 
     private bool isInEditor;
     private ConfigEntry<KeyCode> key;
     private float lastVisibilityUpdateTime;
     private MeshFilter[] meshFilters;
-    private readonly List<BlockProperties> selectedItems = new List<BlockProperties>();
+
+    // Add these fields at the top with your other private fields
+    private float pulseTime;
 
     private ConfigEntry<float> selectionRadius;
     private BlockProperties storedPrimaryTarget; // The object that was used as anchor
-    private readonly List<Vector3> storedRelativePositions = new List<Vector3>();
-    private readonly List<BlockProperties> storedSelectedItems = new List<BlockProperties>();
     private Vector3 storedVertexPosition;
     private Vector3 storedVertOffset;
     private Vector3 vertOffset;
@@ -81,6 +91,10 @@ public class Plugin : BaseUnityPlugin
 
         bool keyDown = Input.GetKey(key.Value);
         bool leftMousePressed = Input.GetMouseButtonDown(0);
+
+        // Update pulse time for hologram materials
+        pulseTime += Time.deltaTime;
+        UpdateHologramPulse();
 
         // Update current target based on what we're pointing at
         if (currentMode == VertexMode.Positioning)
@@ -132,6 +146,7 @@ public class Plugin : BaseUnityPlugin
                 HandlePositioningMode(keyDown, leftMousePressed);
                 break;
             case VertexMode.Snapping:
+
                 HandleSnappingMode(keyDown, leftMousePressed);
                 break;
         }
@@ -144,6 +159,48 @@ public class Plugin : BaseUnityPlugin
 
         RestoreAllVisibility();
         DestroyAllHolograms();
+    }
+
+    private void UpdateHologramPulse()
+    {
+        if (holograms.Count == 0)
+        {
+            return;
+        }
+
+        // Calculate pulsing alpha value using sine wave
+        float alpha = Mathf.Lerp(MIN_ALPHA, MAX_ALPHA, (Mathf.Sin(pulseTime * PULSE_SPEED) + 1f) * 0.5f);
+
+        // Update all hologram materials
+        foreach (GameObject hologram in holograms)
+        {
+            if (hologram == null)
+            {
+                continue;
+            }
+
+            Renderer[] renderers = hologram.GetComponentsInChildren<Renderer>();
+            foreach (Renderer renderer in renderers)
+            {
+                foreach (Material material in renderer.materials)
+                {
+                    if (material != null)
+                    {
+                        Color color = material.color;
+                        color.a = alpha;
+                        material.color = color;
+
+                        // Also update emission color alpha for better effect
+                        if (material.IsKeywordEnabled("_EMISSION"))
+                        {
+                            Color emissionColor = material.GetColor("_EmissionColor");
+                            emissionColor.a = alpha * 0.5f; // Softer emission pulse
+                            material.SetColor("_EmissionColor", emissionColor);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private void UpdateCurrentTarget()
@@ -167,6 +224,7 @@ public class Plugin : BaseUnityPlugin
             {
                 continue;
             }
+
 
             // Check if this hit belongs to any of our selected items
             foreach (BlockProperties item in selectedItems)
@@ -212,6 +270,13 @@ public class Plugin : BaseUnityPlugin
         }
 
         VertexMode oldMode = currentMode;
+
+        // Handle mode exit cleanup
+        if (oldMode == VertexMode.Snapping && newMode != VertexMode.Snapping)
+        {
+            RestoreOriginMaterials();
+        }
+
         currentMode = newMode;
 
         MessengerApi.Log($"[VERTEX] {oldMode} -> {newMode} ({reason})");
@@ -343,6 +408,15 @@ public class Plugin : BaseUnityPlugin
             cursor.position = storedVertexPosition;
         }
 
+        // Apply green emission to original blocks when entering snapping mode
+        if (originRenderers.Count == 0 && storedSelectedItems.Count > 0)
+        {
+            ApplyOriginMaterials();
+        }
+
+        // Update the pulse effect for origin materials
+        UpdateOriginMaterialPulse();
+
         // Handle holograms
         if (keyDown)
         {
@@ -370,15 +444,15 @@ public class Plugin : BaseUnityPlugin
             return;
         }
 
-        // Calculate the new primary position based on the stored primary target
-        Vector3 newPrimaryPosition = targetVertex + storedVertOffset;
+        // Einfacher Ansatz: Berechne die Bewegung direkt zwischen den Vertices
+        Vector3 movement = targetVertex - storedVertexPosition;
 
         // Update all holograms based on their stored relative positions
         for (int i = 0; i < holograms.Count; i++)
         {
             if (holograms[i] != null)
             {
-                Vector3 newPosition = newPrimaryPosition + storedRelativePositions[i];
+                Vector3 newPosition = storedSelectedItems[i].transform.position + movement;
                 holograms[i].transform.position = newPosition;
                 holograms[i].transform.rotation = storedSelectedItems[i].transform.rotation;
             }
@@ -534,9 +608,15 @@ public class Plugin : BaseUnityPlugin
         {
             GameObject hologramChild = new GameObject(originalRenderer.name + "_Hologram");
             hologramChild.transform.SetParent(hologram.transform);
-            hologramChild.transform.localPosition = item.transform.InverseTransformPoint(originalRenderer.transform.position);
-            hologramChild.transform.localRotation = Quaternion.Inverse(item.transform.rotation) * originalRenderer.transform.rotation;
-            hologramChild.transform.localScale = originalRenderer.transform.lossyScale;
+
+            // Correct way to handle scaled objects:
+            // Use world position and rotation directly, then convert to local space of hologram
+            hologramChild.transform.position = originalRenderer.transform.position;
+            hologramChild.transform.rotation = originalRenderer.transform.rotation;
+            hologramChild.transform.localScale = originalRenderer.transform.localScale;
+
+            // Now convert to local space relative to the hologram parent
+            hologramChild.transform.SetParent(hologram.transform, true);
 
             MeshRenderer hologramRenderer = hologramChild.AddComponent<MeshRenderer>();
             MeshFilter hologramFilter = hologramChild.AddComponent<MeshFilter>();
@@ -548,22 +628,36 @@ public class Plugin : BaseUnityPlugin
                 hologramFilter.sharedMesh = originalFilter.sharedMesh;
             }
 
-            // Create hologram materials
+            // Create materials array to match the original renderer's material count
             Material[] hologramMaterials = new Material[originalRenderer.materials.Length];
-            for (int i = 0; i < originalRenderer.materials.Length; i++)
+            for (int i = 0; i < hologramMaterials.Length; i++)
             {
-                Material hologramMat = new Material(originalRenderer.materials[i]);
-                SetMaterialToTransparent(hologramMat);
-                Color color = hologramMat.color;
-                color.a = 0.1f;
-                hologramMat.color = color;
-                hologramMaterials[i] = hologramMat;
+                hologramMaterials[i] = CreateWireframeMaterial();
             }
 
+            // Assign all materials to the hologram renderer
             hologramRenderer.materials = hologramMaterials;
         }
 
         return hologram;
+    }
+
+    private Material CreateWireframeMaterial()
+    {
+        Material wireframeMat = new Material(Shader.Find("Standard"));
+
+        // Set up as transparent wireframe
+        ConfigureHologramMaterial(wireframeMat);
+
+        // Make it a bright, semi-transparent color - start with mid-range alpha
+        float initialAlpha = (MIN_ALPHA + MAX_ALPHA) * 0.5f;
+        wireframeMat.color = new Color(0f, 1f, 0f, initialAlpha); // Cyan with initial alpha
+
+        // Optional: Add emission for better visibility
+        wireframeMat.EnableKeyword("_EMISSION");
+        wireframeMat.SetColor("_EmissionColor", new Color(0f, 0.5f, 0f, initialAlpha * 0.5f));
+
+        return wireframeMat;
     }
 
     private void DestroyAllHolograms()
@@ -753,6 +847,133 @@ public class Plugin : BaseUnityPlugin
         Logger.LogWarning("Unable to get world point");
         worldPoint = Vector3.zero;
         return false;
+    }
+
+    private void ConfigureHologramMaterial(Material material)
+    {
+        // Configure for transparent rendering
+        material.SetOverrideTag("RenderType", "Transparent");
+        material.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
+        material.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
+        material.SetInt("_ZWrite", 0);
+        material.renderQueue = (int)RenderQueue.Transparent;
+
+        // Setup alpha blending
+        material.EnableKeyword("_ALPHABLEND_ON");
+        material.DisableKeyword("_ALPHATEST_ON");
+        material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+
+        // Optimize for hologram appearance
+        material.SetFloat("_Metallic", 0f);
+        material.SetFloat("_Glossiness", 0.1f); // Slight shine for visibility
+    }
+
+    private void ApplyOriginMaterials()
+    {
+        if (storedSelectedItems.Count == 0)
+        {
+            return;
+        }
+
+        // Apply materials to all stored selected items
+        foreach (BlockProperties item in storedSelectedItems)
+        {
+            if (item == null)
+            {
+                continue;
+            }
+
+            Renderer[] renderers = item.GetComponentsInChildren<Renderer>();
+
+            foreach (Renderer renderer in renderers)
+            {
+                if (renderer == null)
+                {
+                    continue;
+                }
+
+                // Store original materials
+                originalMaterials[renderer] = renderer.materials;
+                originRenderers.Add(renderer);
+
+                // Create new pulsing materials
+                Material[] originMaterials = new Material[renderer.materials.Length];
+                for (int i = 0; i < originMaterials.Length; i++)
+                {
+                    originMaterials[i] = CreateOriginMaterial();
+                }
+
+                // Apply the new materials
+                renderer.materials = originMaterials;
+            }
+        }
+    }
+
+    private Material CreateOriginMaterial()
+    {
+        Material originMat = new Material(Shader.Find("Standard"));
+
+        // Set up as transparent
+        ConfigureHologramMaterial(originMat);
+
+        // Green color for origin objects
+        float initialAlpha = (MIN_ALPHA + MAX_ALPHA) * 0.5f;
+        originMat.color = new Color(0f, 1f, 0f, initialAlpha); // Bright green
+
+        originMat.EnableKeyword("_EMISSION");
+        originMat.SetColor("_EmissionColor", new Color(0f, 0.8f, 0f, initialAlpha * 0.7f)); // Green emission
+
+        return originMat;
+    }
+
+    private void RestoreOriginMaterials()
+    {
+        foreach (KeyValuePair<Renderer, Material[]> kvp in originalMaterials)
+        {
+            if (kvp.Key != null)
+            {
+                kvp.Key.materials = kvp.Value;
+            }
+        }
+
+        originalMaterials.Clear();
+        originRenderers.Clear();
+    }
+
+    private void UpdateOriginMaterialPulse()
+    {
+        if (originRenderers.Count == 0)
+        {
+            return;
+        }
+
+        // Use a different phase for origin materials so they pulse differently
+        float originAlpha = Mathf.Lerp(MIN_ALPHA, MAX_ALPHA, (Mathf.Sin(pulseTime * PULSE_SPEED + Mathf.PI) + 1f) * 0.5f);
+
+        foreach (Renderer renderer in originRenderers)
+        {
+            if (renderer == null)
+            {
+                continue;
+            }
+
+            foreach (Material material in renderer.materials)
+            {
+                if (material != null)
+                {
+                    Color color = material.color;
+                    color.a = originAlpha;
+                    material.color = color;
+
+                    if (material.IsKeywordEnabled("_EMISSION"))
+                    {
+                        Color emissionColor = material.GetColor("_EmissionColor");
+                        emissionColor.a = originAlpha * 0.7f;
+                        material.SetColor("_EmissionColor", emissionColor);
+                    }
+                }
+            }
+        }
     }
 
     // New vertex mode system
