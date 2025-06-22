@@ -28,20 +28,11 @@ public class SnapExecutor
             return false;
         }
 
-        // Prepare undo data before making changes
-        PrepareUndoData();
-
         // Perform the actual snapping
         bool success = ExecuteSnap();
 
         if (success)
         {
-            // Finalize undo data after changes
-            FinalizeUndoData();
-
-            // Re-select the moved items
-            RestoreSelection();
-
             logger.LogInfo($"Successfully snapped {data.StoredSelectedItems.Count} objects");
             logger.LogMethodExit(nameof(PerformSnap), "true");
             return true;
@@ -50,26 +41,6 @@ public class SnapExecutor
         logger.LogError("Snap execution failed");
         logger.LogMethodExit(nameof(PerformSnap), "false (execution failed)");
         return false;
-    }
-
-    private void PrepareUndoData()
-    {
-        logger.LogMethodEntry(nameof(PrepareUndoData));
-
-        data.BeforeData.Clear();
-        data.BeforeSelection.Clear();
-
-        foreach (BlockProperties item in data.StoredSelectedItems)
-        {
-            if (item != null)
-            {
-                data.BeforeData.Add(item.GetSaveData());
-                data.BeforeSelection.Add(item.uuid);
-            }
-        }
-
-        logger.LogObjectCount("before data captured", data.BeforeData.Count);
-        logger.LogMethodExit(nameof(PrepareUndoData));
     }
 
     private bool ExecuteSnap()
@@ -109,64 +80,6 @@ public class SnapExecutor
         }
     }
 
-    private void FinalizeUndoData()
-    {
-        logger.LogMethodEntry(nameof(FinalizeUndoData));
-
-        data.AfterData.Clear();
-        data.AfterSelection.Clear();
-
-        foreach (BlockProperties item in data.StoredSelectedItems)
-        {
-            if (item != null)
-            {
-                data.AfterData.Add(item.GetSaveData());
-                data.AfterSelection.Add(item.uuid);
-            }
-        }
-
-        // Create undo entry if we have valid central reference
-        if (data.Central?.undo != null && data.BeforeData.Count > 0 && data.AfterData.Count > 0)
-        {
-            data.Central.undo.CreateUndoEntry(
-                data.BeforeData.ToArray(),
-                data.BeforeSelection.ToArray(),
-                data.AfterData.ToArray(),
-                data.AfterSelection.ToArray()
-            );
-
-            logger.LogDebug("Undo entry created");
-        }
-
-        logger.LogObjectCount("after data captured", data.AfterData.Count);
-        logger.LogMethodExit(nameof(FinalizeUndoData));
-    }
-
-    private void RestoreSelection()
-    {
-        logger.LogMethodEntry(nameof(RestoreSelection));
-
-        if (data.Central?.selection == null)
-        {
-            logger.LogWarning("Cannot restore selection - central or selection is null");
-            logger.LogMethodExit(nameof(RestoreSelection));
-            return;
-        }
-
-        int restored = 0;
-        foreach (BlockProperties item in data.StoredSelectedItems)
-        {
-            if (item != null)
-            {
-                data.Central.selection.SelectBlock(item, false, "");
-                restored++;
-            }
-        }
-
-        logger.LogVariableValue("selection restored", restored);
-        logger.LogMethodExit(nameof(RestoreSelection));
-    }
-
     public void CancelSnap()
     {
         logger.LogMethodEntry(nameof(CancelSnap));
@@ -174,10 +87,6 @@ public class SnapExecutor
         // Simply clear stored data without making changes
         data.StoredSelectedItems.Clear();
         data.StoredRelativePositions.Clear();
-        data.BeforeData.Clear();
-        data.BeforeSelection.Clear();
-        data.AfterData.Clear();
-        data.AfterSelection.Clear();
 
         logger.LogDebug("Snap operation cancelled");
         logger.LogMethodExit(nameof(CancelSnap));

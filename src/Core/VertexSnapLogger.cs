@@ -37,7 +37,18 @@ public class VertexSnapLogger
 
     public void LogInfo(string message)
     {
-        MessengerApi.Log($"{prefix} {message}");
+        // Use Unity's Debug.Log instead of MessengerApi to avoid null reference
+        Debug.Log($"{prefix} {message}");
+        
+        // Try to use MessengerApi if available, but don't fail if it's not
+        try
+        {
+            MessengerApi.Log($"{prefix} {message}");
+        }
+        catch (Exception)
+        {
+            // Silently ignore if MessengerApi is not ready
+        }
     }
 
     public void LogDebug(string message)

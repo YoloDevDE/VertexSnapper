@@ -23,7 +23,7 @@ public class Plugin : BaseUnityPlugin
     private void Awake()
     {
         logger = new VertexSnapLogger();
-        logger.LogInfo($"VertexSnapper v{MyPluginInfo.PLUGIN_VERSION} starting up");
+        logger.LogInfo($"VertexSnapper {MyPluginInfo.PLUGIN_VERSION} starting up");
 
         // Initialize core components
         data = new VertexSnapData();

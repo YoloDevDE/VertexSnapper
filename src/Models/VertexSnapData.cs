@@ -35,10 +35,4 @@ public class VertexSnapData
 
     // Input tracking
     public bool WasKeyDownLastFrame { get; set; }
-
-    // Undo/Redo data
-    public List<string> BeforeData { get; } = new List<string>();
-    public List<string> BeforeSelection { get; } = new List<string>();
-    public List<string> AfterData { get; } = new List<string>();
-    public List<string> AfterSelection { get; } = new List<string>();
 }
