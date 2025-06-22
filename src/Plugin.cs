@@ -16,20 +16,18 @@ public class Plugin : BaseUnityPlugin
     // Constants
     private const int MAX_HITS = 16;
     private const string BLOCK_TAG = "BuildingBlock";
-    private const float VISIBILITY_UPDATE_INTERVAL = 0.1f;
-    private const float PULSE_SPEED = 4f; // Speed of the pulse
-    private const float MIN_ALPHA = 0.1f; // Minimum opacity
-    private const float MAX_ALPHA = 0.6f; // Maximum opacity
+    private const float PULSE_SPEED = 4f;
+    private const float MIN_ALPHA = 0.1f;
+    private const float MAX_ALPHA = 0.6f;
 
     // Static fields
     private static readonly RaycastHit[] hits = new RaycastHit[MAX_HITS];
-
     private static readonly List<string> before = new List<string>();
     private static readonly List<string> beforeSelection = new List<string>();
     private static readonly List<string> after = new List<string>();
     private static readonly List<string> afterSelection = new List<string>();
 
-    // Visibility and rendering management
+    // Collections
     private readonly HashSet<Renderer> hiddenRenderers = new HashSet<Renderer>();
     private readonly List<GameObject> holograms = new List<GameObject>();
     private readonly Dictionary<Renderer, Material[]> originalMaterials = new Dictionary<Renderer, Material[]>();
@@ -40,42 +38,31 @@ public class Plugin : BaseUnityPlugin
 
     // Core components
     private Camera cam;
-
     private LEV_LevelEditorCentral central;
 
     // State management
     private VertexMode currentMode = VertexMode.Inactive;
-
-    // Target and selection management
-    private BlockProperties currentTarget; // The object we're currently pointing at
+    private BlockProperties currentTarget;
     private Transform cursor;
+    private Transform snappingCursor; // New cursor for snapping mode
     private ConfigEntry<string> hologramColor;
-    private bool isDragging;
     private bool isInEditor;
 
     // Configuration
-    private ConfigEntry<KeyCode> key;
+    private ConfigEntry<KeyCode> VertexActivationKey;
 
-    // Timing and updates
-    private float lastVisibilityUpdateTime;
-
-    // Mesh data
+    // Runtime data
     private MeshFilter[] meshFilters;
     private float pulseTime;
     private ConfigEntry<float> selectionRadius;
-
-
-    // Stored state for snapping mode
-    private BlockProperties storedPrimaryTarget; // The object that was used as anchor
+    private BlockProperties storedPrimaryTarget;
     private Vector3 storedVertexPosition;
     private Vector3 storedVertOffset;
     private Vector3 vertOffset;
-
     private bool wasKeyDownLastFrame;
 
     // Properties
     private Transform Target => currentTarget?.transform;
-
 
     // Unity lifecycle methods
     private void Awake()
@@ -85,19 +72,10 @@ public class Plugin : BaseUnityPlugin
 
         Logger.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
 
-        selectionRadius = Config.Bind("General",
-            "Selection Radiuses",
-            0.5f);
-
-        key = Config.Bind("Keybinds",
-            "Activation Key",
-            KeyCode.LeftControl,
-            "Holding down this key enables the vertex snapper");
-
-        hologramColor = Config.Bind("Visual",
-            "Hologram Color",
-            "#00FFFF",
-            "Color of the hologram preview in hex format (e.g., #00FFFF for cyan, #FF0000 for red)");
+        // Configuration
+        selectionRadius = Config.Bind("General", "Selection Radius", 0.5f);
+        VertexActivationKey = Config.Bind("Keybinds", "Activation Key", KeyCode.LeftControl, "Holding down this 'VertexActivationKey' enables the vertex snapper");
+        hologramColor = Config.Bind("Visual", "Hologram Color", "#00FFFF", "Color of the hologram preview in hex format (e.g., #00FFFF for cyan, #FF0000 for red)");
     }
 
     private void Update()
@@ -107,76 +85,27 @@ public class Plugin : BaseUnityPlugin
             return;
         }
 
-        bool keyDown = Input.GetKey(key.Value);
+        bool keyDown = Input.GetKey(VertexActivationKey.Value);
         bool leftMousePressed = Input.GetMouseButtonDown(0);
 
-        // Update pulse time for hologram materials
         pulseTime += Time.deltaTime;
-        UpdateHologramPulse();
+        UpdateAllPulseEffects();
 
-        // Update current target based on what we're pointing at
         if (currentMode == VertexMode.Positioning)
         {
             UpdateCurrentTarget();
         }
 
-        // Handle mode transitions
         HandleModeTransitions(keyDown, leftMousePressed);
-
-        // Handle visibility based on key state (only when not in snapping mode)
-        if (currentMode != VertexMode.Snapping)
-        {
-            if (keyDown != wasKeyDownLastFrame)
-            {
-                if (keyDown)
-                {
-                    lastVisibilityUpdateTime = 0; // Force immediate update
-                }
-                else
-                {
-                    RestoreAllVisibility();
-                }
-
-                wasKeyDownLastFrame = keyDown;
-            }
-        }
-
-        // Handle mouse input blocking
-        if (central != null)
-        {
-            if (keyDown || currentMode == VertexMode.Snapping)
-            {
-                LevelEditorApi.BlockMouseInput(this);
-            }
-            else
-            {
-                LevelEditorApi.UnblockMouseInput(this);
-            }
-        }
-
-        // Handle different modes
-        switch (currentMode)
-        {
-            case VertexMode.Inactive:
-                HandleInactiveMode(keyDown);
-                break;
-            case VertexMode.Positioning:
-                HandlePositioningMode(keyDown, leftMousePressed);
-                break;
-            case VertexMode.Snapping:
-
-                HandleSnappingMode(keyDown, leftMousePressed);
-                break;
-        }
+        HandleVisibilityAndInput(keyDown);
+        HandleCurrentMode(keyDown, leftMousePressed);
     }
 
     private void OnDestroy()
     {
         LevelEditorApi.EnteredLevelEditor -= EnteredLevelEditor;
         LevelEditorApi.ExitedLevelEditor -= ExitedLevelEditor;
-
-        RestoreAllVisibility();
-        DestroyAllHolograms();
+        CleanupAll();
     }
 
     // Event handlers
@@ -189,15 +118,12 @@ public class Plugin : BaseUnityPlugin
     private void ExitedLevelEditor()
     {
         isInEditor = false;
-        RestoreAllVisibility();
-        DestroyAllHolograms();
+        CleanupAll();
         SetMode(VertexMode.Inactive, "Exited level editor");
         currentTarget = null;
         wasKeyDownLastFrame = false;
     }
 
-
-    // Check if this hit belongs to any of our selected items
     private void ItemGotSelected()
     {
         ProcessItemSelection();
@@ -217,15 +143,12 @@ public class Plugin : BaseUnityPlugin
         }
 
         VertexMode oldMode = currentMode;
-
-        // Handle mode exit cleanup
         if (oldMode == VertexMode.Snapping && newMode != VertexMode.Snapping)
         {
             RestoreOriginMaterials();
         }
 
         currentMode = newMode;
-
         MessengerApi.Log($"[VERTEX] {oldMode} -> {newMode} ({reason})");
     }
 
@@ -236,17 +159,7 @@ public class Plugin : BaseUnityPlugin
             case VertexMode.Inactive:
                 if (keyDown && central != null && selectedItems.Count > 0)
                 {
-                    // Set initial target to first selected item if none is set
-                    if (currentTarget == null || !selectedItems.Contains(currentTarget))
-                    {
-                        currentTarget = selectedItems.FirstOrDefault();
-                        if (Target != null)
-                        {
-                            meshFilters = Target.GetComponentsInChildren<MeshFilter>();
-                        }
-                    }
-
-                    SetMode(VertexMode.Positioning, $"Key pressed with {selectedItems.Count} object(s) selected");
+                    InitializePositioningMode();
                 }
 
                 break;
@@ -254,28 +167,7 @@ public class Plugin : BaseUnityPlugin
             case VertexMode.Positioning:
                 if (keyDown && leftMousePressed && cursor != null && currentTarget != null)
                 {
-                    // Store current state and enter snapping mode
-                    storedVertexPosition = cursor.position;
-                    storedVertOffset = vertOffset;
-                    storedPrimaryTarget = currentTarget;
-                    storedSelectedItems.Clear();
-                    storedSelectedItems.AddRange(selectedItems);
-
-                    // Calculate relative positions of all selected objects to the current target
-                    storedRelativePositions.Clear();
-                    Vector3 primaryPosition = storedPrimaryTarget.transform.position;
-                    foreach (BlockProperties item in storedSelectedItems)
-                    {
-                        storedRelativePositions.Add(item.transform.position);
-                    }
-
-                    SetMode(VertexMode.Snapping, $"Left click while positioning cursor on {currentTarget.name} ({storedSelectedItems.Count} objects stored)");
-
-                    // Clear selection to allow free roaming
-                    if (central != null)
-                    {
-                        central.selection.DeselectAllBlocks(true, "");
-                    }
+                    InitializeSnappingMode();
                 }
                 else if (!keyDown)
                 {
@@ -287,39 +179,108 @@ public class Plugin : BaseUnityPlugin
             case VertexMode.Snapping:
                 if (leftMousePressed && holograms.Count > 0)
                 {
-                    // Confirm the snap
                     PerformSnap();
                     SetMode(VertexMode.Inactive, $"Snap confirmed with left click ({storedSelectedItems.Count} objects moved)");
                 }
-                // Exit snapping mode with Escape or right click
-                else if (Input.GetKeyDown(KeyCode.Escape))
+                else if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(2))
                 {
-                    SetMode(VertexMode.Inactive, "Escape key pressed");
-                }
-                else if (Input.GetMouseButtonDown(2))
-                {
-                    SetMode(VertexMode.Inactive, "Middle click to cancel");
+                    SetMode(VertexMode.Inactive, Input.GetKeyDown(KeyCode.Escape) ? "Escape VertexActivationKey pressed" : "Middle click to cancel");
                 }
 
                 break;
         }
     }
 
-    private void HandleInactiveMode(bool keyDown)
+    private void InitializePositioningMode()
     {
-        if (!keyDown)
+        if (currentTarget == null || !selectedItems.Contains(currentTarget))
         {
-            DestroyCursor();
-            DestroyAllHolograms();
-            currentTarget = null;
+            currentTarget = selectedItems.FirstOrDefault();
+            if (Target != null)
+            {
+                meshFilters = Target.GetComponentsInChildren<MeshFilter>();
+            }
+        }
+
+        SetMode(VertexMode.Positioning, $"Key pressed with {selectedItems.Count} object(s) selected");
+    }
+
+    private void InitializeSnappingMode()
+    {
+        storedVertexPosition = cursor.position;
+        storedVertOffset = vertOffset;
+        storedPrimaryTarget = currentTarget;
+        storedSelectedItems.Clear();
+        storedSelectedItems.AddRange(selectedItems);
+
+        storedRelativePositions.Clear();
+        
+        foreach (BlockProperties item in storedSelectedItems)
+        {
+            storedRelativePositions.Add(item.transform.position);
+        }
+
+        SetMode(VertexMode.Snapping, $"Left click while positioning cursor on {currentTarget.name} ({storedSelectedItems.Count} objects stored)");
+
+        if (central != null)
+        {
+            central.selection.DeselectAllBlocks(true, "");
         }
     }
 
-    private void HandlePositioningMode(bool keyDown, bool leftMousePressed)
+    private void HandleVisibilityAndInput(bool keyDown)
+    {
+        if (currentMode != VertexMode.Snapping && keyDown != wasKeyDownLastFrame)
+        {
+            if (!keyDown)
+            {
+                RestoreAllVisibility();
+            }
+
+            wasKeyDownLastFrame = keyDown;
+        }
+
+        if (central != null)
+        {
+            if (keyDown || currentMode == VertexMode.Snapping)
+            {
+                LevelEditorApi.BlockMouseInput(this);
+            }
+            else
+            {
+                LevelEditorApi.UnblockMouseInput(this);
+            }
+        }
+    }
+
+    private void HandleCurrentMode(bool keyDown, bool leftMousePressed)
+    {
+        switch (currentMode)
+        {
+            case VertexMode.Inactive:
+                if (!keyDown)
+                {
+                    CleanupAllCursorsAndHolograms();
+                    currentTarget = null;
+                }
+
+                break;
+
+            case VertexMode.Positioning:
+                HandlePositioningMode(keyDown);
+                break;
+
+            case VertexMode.Snapping:
+                HandleSnappingMode(keyDown);
+                break;
+        }
+    }
+
+    private void HandlePositioningMode(bool keyDown)
     {
         if (!keyDown)
         {
-            DestroyCursor();
+            CleanupAllCursorsAndHolograms();
             currentTarget = null;
             return;
         }
@@ -331,20 +292,49 @@ public class Plugin : BaseUnityPlugin
         }
 
         CreateCursor();
-
         Ray ray = cam.ScreenPointToRay(Input.mousePosition);
-        if (!TryGetWorldPoint(ray, out Vector3 worldPoint))
+        if (TryGetWorldPoint(ray, out Vector3 worldPoint))
         {
-            return;
+            cursor.position = GetClosestVert(meshFilters, worldPoint);
+            CalculateVertOffset();
         }
-
-        cursor.position = GetClosestVert(meshFilters, worldPoint);
-        CalculateVertOffset();
     }
 
-    private void HandleSnappingMode(bool keyDown, bool leftMousePressed)
+    private void HandleSnappingMode(bool keyDown)
     {
-        // Keep cursor at stored position
+        // Keep the original cursor at the stored position
+        UpdateOriginalCursorPosition();
+
+        if (originRenderers.Count == 0 && storedSelectedItems.Count > 0)
+        {
+            ApplyOriginMaterials();
+        }
+
+        if (keyDown)
+        {
+            Ray ray = cam.ScreenPointToRay(Input.mousePosition);
+            if (TryFindTargetVertex(ray, out Vector3 targetVertex))
+            {
+                CreateSnappingCursor();
+                UpdateSnappingCursor(targetVertex);
+                CreateAllHolograms();
+                UpdateHologramPositions(targetVertex);
+            }
+            else
+            {
+                DestroySnappingCursor();
+                DestroyAllHolograms();
+            }
+        }
+        else
+        {
+            DestroySnappingCursor();
+            DestroyAllHolograms();
+        }
+    }
+
+    private void UpdateOriginalCursorPosition()
+    {
         if (cursor != null)
         {
             cursor.position = storedVertexPosition;
@@ -353,34 +343,6 @@ public class Plugin : BaseUnityPlugin
         {
             CreateCursor();
             cursor.position = storedVertexPosition;
-        }
-
-        // Apply green emission to original blocks when entering snapping mode
-        if (originRenderers.Count == 0 && storedSelectedItems.Count > 0)
-        {
-            ApplyOriginMaterials();
-        }
-
-        // Update the pulse effect for origin materials
-        UpdateOriginMaterialPulse();
-
-        // Handle holograms
-        if (keyDown)
-        {
-            Ray ray = cam.ScreenPointToRay(Input.mousePosition);
-            if (TryFindTargetVertex(ray, out Vector3 targetVertex))
-            {
-                CreateAllHolograms();
-                UpdateHologramPositions(targetVertex);
-            }
-            else
-            {
-                DestroyAllHolograms();
-            }
-        }
-        else
-        {
-            DestroyAllHolograms();
         }
     }
 
@@ -401,13 +363,11 @@ public class Plugin : BaseUnityPlugin
         for (int i = 0; i < min; i++)
         {
             RaycastHit hit = hits[i];
-
-            if (hit.transform == cursor?.transform)
+            if (hit.transform == cursor?.transform || hit.transform == snappingCursor?.transform)
             {
                 continue;
             }
 
-            // Check if this hit belongs to any of our selected items
             foreach (BlockProperties item in selectedItems)
             {
                 if (item != null && (hit.transform == item.transform || hit.transform.IsChildOf(item.transform)))
@@ -423,7 +383,6 @@ public class Plugin : BaseUnityPlugin
             }
         }
 
-        // If we didn't hit any selected object, keep the current target or use the first one
         if (newTarget == null)
         {
             if (currentTarget == null || !selectedItems.Contains(currentTarget))
@@ -434,7 +393,6 @@ public class Plugin : BaseUnityPlugin
         else if (newTarget != currentTarget)
         {
             currentTarget = newTarget;
-            // Update mesh filters when target changes
             if (Target != null)
             {
                 meshFilters = Target.GetComponentsInChildren<MeshFilter>();
@@ -446,13 +404,11 @@ public class Plugin : BaseUnityPlugin
     private void ProcessItemSelection()
     {
         selectedItems.Clear();
-
-        if (central != null && central.selection.list.Count > 0)
+        if (central?.selection.list.Count > 0)
         {
             selectedItems.AddRange(central.selection.list);
         }
 
-        // Reset current target when selection changes
         currentTarget = null;
         meshFilters = null;
     }
@@ -460,7 +416,6 @@ public class Plugin : BaseUnityPlugin
     private void TryFindCentral()
     {
         central = FindObjectOfType<LEV_LevelEditorCentral>();
-
         if (central == null)
         {
             return;
@@ -471,7 +426,7 @@ public class Plugin : BaseUnityPlugin
         cam = central.cam.cameraCamera;
     }
 
-    // Cursor management
+    // Cursor and hologram management
     private void CreateCursor()
     {
         if (cursor != null)
@@ -484,21 +439,42 @@ public class Plugin : BaseUnityPlugin
         Renderer ren = cursor.GetComponent<Renderer>();
         ren.material = new Material(Shader.Find("Standard"));
         ren.material.color = new Color(1, 1, 1, 0.75f);
-        SetMaterialToTransparent(ren.material);
-        Collider col = cursor.GetComponent<Collider>();
-        col.enabled = false;
+        ConfigureTransparentMaterial(ren.material);
+        cursor.GetComponent<Collider>().enabled = false;
     }
 
-    private void DestroyCursor()
+    private void CreateSnappingCursor()
     {
-        // Create undo/redo entry
-        if (cursor != null)
+        if (snappingCursor != null)
         {
-            Destroy(cursor.gameObject);
+            return;
+        }
+
+        snappingCursor = GameObject.CreatePrimitive(PrimitiveType.Sphere).transform;
+        snappingCursor.localScale = Vector3.one * selectionRadius.Value * 1.2f; // Slightly larger for distinction
+        Renderer ren = snappingCursor.GetComponent<Renderer>();
+        ren.material = CreateSnappingCursorMaterial();
+        
+        snappingCursor.GetComponent<Collider>().enabled = false;
+    }
+
+    private void UpdateSnappingCursor(Vector3 targetVertex)
+    {
+        if (snappingCursor != null)
+        {
+            snappingCursor.position = targetVertex;
         }
     }
 
-    // Hologram management
+    private void DestroySnappingCursor()
+    {
+        if (snappingCursor != null)
+        {
+            Destroy(snappingCursor.gameObject);
+            snappingCursor = null;
+        }
+    }
+
     private void CreateAllHolograms()
     {
         if (holograms.Count > 0 || storedSelectedItems.Count == 0)
@@ -521,34 +497,29 @@ public class Plugin : BaseUnityPlugin
     private GameObject CreateHologramForItem(BlockProperties item)
     {
         GameObject hologram = new GameObject($"VertexSnapHologram_{item.name}");
-
         hologram.transform.position = item.transform.position;
         hologram.transform.rotation = item.transform.rotation;
         hologram.transform.localScale = item.transform.localScale;
 
-        // Create a transparent version with edge highlighting
         Renderer[] originalRenderers = item.GetComponentsInChildren<Renderer>();
         foreach (Renderer originalRenderer in originalRenderers)
         {
-            GameObject hologramChild = new GameObject(originalRenderer.name + "_Hologram");
-
-            hologramChild.transform.position = originalRenderer.transform.position;
-            hologramChild.transform.rotation = originalRenderer.transform.rotation;
-            hologramChild.transform.localScale = originalRenderer.transform.lossyScale;
-            hologramChild.transform.SetParent(hologram.transform, true);
-
-            // Create two renderers: one for fill, one for wireframe
-            // CreateFilledRenderer(hologramChild, originalRenderer);
-            CreateWireframeOutline(hologramChild, originalRenderer);
+            CreateHologramRenderer(hologram, originalRenderer);
         }
 
         return hologram;
     }
 
-    private void CreateFilledRenderer(GameObject parent, Renderer originalRenderer)
+    private void CreateHologramRenderer(GameObject hologram, Renderer originalRenderer)
     {
-        MeshRenderer hologramRenderer = parent.AddComponent<MeshRenderer>();
-        MeshFilter hologramFilter = parent.AddComponent<MeshFilter>();
+        GameObject hologramChild = new GameObject(originalRenderer.name + "_Hologram");
+        hologramChild.transform.position = originalRenderer.transform.position;
+        hologramChild.transform.rotation = originalRenderer.transform.rotation;
+        hologramChild.transform.localScale = originalRenderer.transform.lossyScale;
+        hologramChild.transform.SetParent(hologram.transform, true);
+
+        MeshRenderer hologramRenderer = hologramChild.AddComponent<MeshRenderer>();
+        MeshFilter hologramFilter = hologramChild.AddComponent<MeshFilter>();
 
         MeshFilter originalFilter = originalRenderer.GetComponent<MeshFilter>();
         if (originalFilter != null)
@@ -556,46 +527,43 @@ public class Plugin : BaseUnityPlugin
             hologramFilter.sharedMesh = originalFilter.sharedMesh;
         }
 
-        // Very transparent fill
-        Material fillMaterial = CreateWireframeMaterial();
-        ConfigureHologramMaterial(fillMaterial);
+        Material[] hologramMaterials = new Material[originalRenderer.materials.Length];
+        for (int i = 0; i < hologramMaterials.Length; i++)
+            hologramMaterials[i] = CreateHologramMaterial();
 
-        Color configColor = ParseHexColor(hologramColor.Value);
-        configColor.a = 0.05f; // Very transparent
-        fillMaterial.color = configColor;
-
-        hologramRenderer.material = fillMaterial;
+        hologramRenderer.materials = hologramMaterials;
     }
 
-    private void CreateWireframeOutline(GameObject parent, Renderer originalRenderer)
+    private void UpdateHologramPositions(Vector3 targetVertex)
     {
-        // Create a second renderer for the outline effect
-        GameObject outlineObj = new GameObject("Outline");
-        outlineObj.transform.SetParent(parent.transform);
-        outlineObj.transform.localPosition = Vector3.zero;
-        outlineObj.transform.localRotation = Quaternion.identity;
-        outlineObj.transform.localScale = Vector3.one * 1.01f; // Slightly larger
-
-        MeshRenderer outlineRenderer = outlineObj.AddComponent<MeshRenderer>();
-        MeshFilter outlineFilter = outlineObj.AddComponent<MeshFilter>();
-
-        MeshFilter originalFilter = originalRenderer.GetComponent<MeshFilter>();
-        if (originalFilter != null)
+        if (holograms.Count != storedSelectedItems.Count || storedPrimaryTarget == null)
         {
-            outlineFilter.sharedMesh = originalFilter.sharedMesh;
+            return;
         }
 
-        // Outline material
-        Material outlineMaterial = CreateWireframeMaterial();
-        outlineMaterial.SetFloat("_Mode", 2); // Fade
-        outlineMaterial.SetInt("_Cull", 1); // Front face culling to show only back faces
+        Vector3 movement = targetVertex - storedVertexPosition;
 
-        Color configColor = ParseHexColor(hologramColor.Value);
-        configColor.a = 0.7f;
-        outlineMaterial.color = configColor;
+        for (int i = 0; i < holograms.Count; i++)
+        {
+            if (holograms[i] != null && i < storedRelativePositions.Count)
+            {
+                Vector3 newPosition = storedRelativePositions[i] + movement;
+                holograms[i].transform.position = newPosition;
+                holograms[i].transform.rotation = storedSelectedItems[i].transform.rotation;
+            }
+        }
+    }
 
-        ConfigureHologramMaterial(outlineMaterial);
-        outlineRenderer.material = outlineMaterial;
+    private void CleanupAllCursorsAndHolograms()
+    {
+        if (cursor != null)
+        {
+            Destroy(cursor.gameObject);
+            cursor = null;
+        }
+
+        DestroySnappingCursor();
+        DestroyAllHolograms();
     }
 
     private void DestroyAllHolograms()
@@ -611,138 +579,65 @@ public class Plugin : BaseUnityPlugin
         holograms.Clear();
     }
 
-    private void UpdateHologramPositions(Vector3 targetVertex)
-    {
-        if (holograms.Count != storedSelectedItems.Count || storedPrimaryTarget == null)
-        {
-            return;
-        }
-
-        // Calculate the movement from the stored vertex position to the target vertex
-        Vector3 movement = targetVertex - storedVertexPosition;
-
-        // Update all holograms based on their stored relative positions
-        for (int i = 0; i < holograms.Count; i++)
-        {
-            if (holograms[i] != null && i < storedRelativePositions.Count)
-            {
-                // Use the stored position (from when we entered snapping mode) plus the movement
-                Vector3 newPosition = storedRelativePositions[i] + movement;
-                holograms[i].transform.position = newPosition;
-                holograms[i].transform.rotation = storedSelectedItems[i].transform.rotation;
-            }
-        }
-    }
-
-    private void UpdateHologramPulse()
-    {
-        if (holograms.Count == 0)
-        {
-            return;
-        }
-
-        // Calculate pulsing alpha value using sine wave
-        float alpha = Mathf.Lerp(MIN_ALPHA, MAX_ALPHA, (Mathf.Sin(pulseTime * PULSE_SPEED) + 1f) * 0.5f);
-
-        // Update all hologram materials
-        foreach (GameObject hologram in holograms)
-        {
-            if (hologram == null)
-            {
-                continue;
-            }
-
-            Renderer[] renderers = hologram.GetComponentsInChildren<Renderer>();
-            foreach (Renderer renderer in renderers)
-            {
-                foreach (Material material in renderer.materials)
-                {
-                    if (material != null)
-                    {
-                        Color color = material.color;
-                        color.a = alpha;
-                        material.color = color;
-
-                        // Also update emission color alpha for better effect
-                        if (material.IsKeywordEnabled("_EMISSION"))
-                        {
-                            Color emissionColor = material.GetColor("_EmissionColor");
-                            emissionColor.a = alpha * 0.5f; // Softer emission pulse
-                            material.SetColor("_EmissionColor", emissionColor);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     // Material management
-    private Material CreateWireframeMaterial()
+    private Material CreateHologramMaterial()
     {
-        // Use Sprites/Default or Unlit/Color for simple wireframe effect
-        Material wireframeMat = new Material(Shader.Find("Sprites/Default"));
+        Material hologramMat = new Material(Shader.Find("Standard"));
+        ConfigureTransparentMaterial(hologramMat);
 
-        // Configure for wireframe-like appearance
         Color configColor = ParseHexColor(hologramColor.Value);
-        configColor.a = 0.8f;
-        wireframeMat.color = configColor;
+        configColor.a = (MIN_ALPHA + MAX_ALPHA) * 0.5f;
+        hologramMat.color = configColor;
 
-        // Set up transparency
-        wireframeMat.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
-        wireframeMat.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
-        wireframeMat.SetInt("_ZWrite", 0);
-        wireframeMat.renderQueue = 3000;
+        hologramMat.EnableKeyword("_EMISSION");
+        hologramMat.SetColor("_EmissionColor", configColor * 0.7f);
 
-        return wireframeMat;
+        return hologramMat;
+    }
+
+    private Material CreateSnappingCursorMaterial()
+    {
+        Material cursorMat = new Material(Shader.Find("Standard"));
+        ConfigureTransparentMaterial(cursorMat);
+
+        // Use a distinct color for the snapping cursor - bright yellow/orange
+        Color cursorColor = new Color(1f, 0.8f, 0f, 0.9f); // Bright yellow-orange
+        cursorMat.color = cursorColor;
+
+        cursorMat.EnableKeyword("_EMISSION");
+        cursorMat.SetColor("_EmissionColor", cursorColor * 1.5f); // Bright emission
+
+        return cursorMat;
     }
 
     private Material CreateOriginMaterial()
     {
         Material originMat = new Material(Shader.Find("Standard"));
+        ConfigureTransparentMaterial(originMat);
 
-        // Set up as transparent
-        ConfigureHologramMaterial(originMat);
-
-        // Green color for origin objects
         float initialAlpha = (MIN_ALPHA + MAX_ALPHA) * 0.5f;
-        originMat.color = new Color(0f, 1f, 0f, initialAlpha); // Bright green
+        originMat.color = new Color(0f, 1f, 0f, initialAlpha);
 
         originMat.EnableKeyword("_EMISSION");
-        originMat.SetColor("_EmissionColor", new Color(0f, 0.8f, 0f, initialAlpha * 0.7f)); // Green emission
+        originMat.SetColor("_EmissionColor", new Color(0f, 0.8f, 0f, initialAlpha * 0.7f));
 
         return originMat;
     }
 
-
-    private void ConfigureHologramMaterial(Material material)
+    private void ConfigureTransparentMaterial(Material material)
     {
-        // Configure for transparent rendering
         material.SetOverrideTag("RenderType", "Transparent");
         material.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
         material.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
         material.SetInt("_ZWrite", 0);
         material.renderQueue = (int)RenderQueue.Transparent;
 
-        // Setup alpha blending
         material.EnableKeyword("_ALPHABLEND_ON");
         material.DisableKeyword("_ALPHATEST_ON");
         material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
 
-        // Optimize for hologram appearance
         material.SetFloat("_Metallic", 0f);
-        material.SetFloat("_Glossiness", 0.1f); // Slight shine for visibility
-    }
-
-    private void SetMaterialToTransparent(Material material)
-    {
-        material.SetOverrideTag("RenderType", "Transparent");
-        material.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
-        material.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
-        material.SetInt("_ZWrite", 0);
-        material.DisableKeyword("_ALPHATEST_ON");
-        material.EnableKeyword("_ALPHABLEND_ON");
-        material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-        material.renderQueue = (int)RenderQueue.Transparent;
+        material.SetFloat("_Glossiness", 0.1f);
     }
 
     private void ApplyOriginMaterials()
@@ -752,7 +647,6 @@ public class Plugin : BaseUnityPlugin
             return;
         }
 
-        // Apply materials to all stored selected items
         foreach (BlockProperties item in storedSelectedItems)
         {
             if (item == null)
@@ -761,7 +655,6 @@ public class Plugin : BaseUnityPlugin
             }
 
             Renderer[] renderers = item.GetComponentsInChildren<Renderer>();
-
             foreach (Renderer renderer in renderers)
             {
                 if (renderer == null)
@@ -769,18 +662,13 @@ public class Plugin : BaseUnityPlugin
                     continue;
                 }
 
-                // Store original materials
                 originalMaterials[renderer] = renderer.materials;
                 originRenderers.Add(renderer);
 
-                // Create new pulsing materials
                 Material[] originMaterials = new Material[renderer.materials.Length];
                 for (int i = 0; i < originMaterials.Length; i++)
-                {
                     originMaterials[i] = CreateOriginMaterial();
-                }
 
-                // Apply the new materials
                 renderer.materials = originMaterials;
             }
         }
@@ -800,17 +688,57 @@ public class Plugin : BaseUnityPlugin
         originRenderers.Clear();
     }
 
-    private void UpdateOriginMaterialPulse()
+    private void UpdateAllPulseEffects()
     {
-        if (originRenderers.Count == 0)
+        if (holograms.Count > 0)
         {
-            return;
+            UpdateHologramPulse();
         }
 
-        // Use a different phase for origin materials so they pulse differently
-        float originAlpha = Mathf.Lerp(MIN_ALPHA, MAX_ALPHA, (Mathf.Sin(pulseTime * PULSE_SPEED + Mathf.PI) + 1f) * 0.5f);
+        if (originRenderers.Count > 0)
+        {
+            UpdateOriginMaterialPulse();
+        }
 
-        foreach (Renderer renderer in originRenderers)
+        // Update snapping cursor pulse
+        if (snappingCursor != null)
+        {
+            UpdateSnappingCursorPulse();
+        }
+    }
+
+    private void UpdateHologramPulse()
+    {
+        float alpha = Mathf.Lerp(MIN_ALPHA, MAX_ALPHA, (Mathf.Sin(pulseTime * PULSE_SPEED) + 1f) * 0.5f);
+        UpdateRenderersAlpha(holograms.SelectMany(h => h?.GetComponentsInChildren<Renderer>() ?? new Renderer[0]), alpha, 0.5f);
+    }
+
+    private void UpdateOriginMaterialPulse()
+    {
+        float originAlpha = Mathf.Lerp(MIN_ALPHA, MAX_ALPHA, (Mathf.Sin(pulseTime * PULSE_SPEED + Mathf.PI) + 1f) * 0.5f);
+        UpdateRenderersAlpha(originRenderers, originAlpha, 0.7f);
+    }
+
+    private void UpdateSnappingCursorPulse()
+    {
+        Renderer cursorRenderer = snappingCursor.GetComponent<Renderer>();
+        if (cursorRenderer?.material != null)
+        {
+            // Fast pulse for the snapping cursor
+            float fastAlpha = Mathf.Lerp(0.5f, 1f, (Mathf.Sin(pulseTime * PULSE_SPEED * 2f) + 1f) * 0.5f);
+            Color baseColor = new Color(1f, 0.8f, 0f, fastAlpha);
+            cursorRenderer.material.color = baseColor;
+            
+            if (cursorRenderer.material.IsKeywordEnabled("_EMISSION"))
+            {
+                cursorRenderer.material.SetColor("_EmissionColor", baseColor * 2f);
+            }
+        }
+    }
+
+    private void UpdateRenderersAlpha(IEnumerable<Renderer> renderers, float alpha, float emissionMultiplier)
+    {
+        foreach (Renderer renderer in renderers)
         {
             if (renderer == null)
             {
@@ -819,24 +747,38 @@ public class Plugin : BaseUnityPlugin
 
             foreach (Material material in renderer.materials)
             {
-                if (material != null)
+                if (material == null)
                 {
-                    Color color = material.color;
-                    color.a = originAlpha;
-                    material.color = color;
+                    continue;
+                }
 
-                    if (material.IsKeywordEnabled("_EMISSION"))
-                    {
-                        Color emissionColor = material.GetColor("_EmissionColor");
-                        emissionColor.a = originAlpha * 0.7f;
-                        material.SetColor("_EmissionColor", emissionColor);
-                    }
+                Color color = material.color;
+                color.a = alpha;
+                material.color = color;
+
+                if (material.IsKeywordEnabled("_EMISSION"))
+                {
+                    Color emissionColor = material.GetColor("_EmissionColor");
+                    emissionColor.a = alpha * emissionMultiplier;
+                    material.SetColor("_EmissionColor", emissionColor);
                 }
             }
         }
     }
 
-    // Visibility management
+    // Utility and calculation methods
+    private void CleanupAll()
+    {
+        RestoreAllVisibility();
+        DestroyAllHolograms();
+        if (cursor != null)
+        {
+            Destroy(cursor.gameObject);
+            cursor = null;
+        }
+        DestroySnappingCursor();
+    }
+
     private void RestoreAllVisibility()
     {
         foreach (Renderer renderer in hiddenRenderers)
@@ -850,7 +792,6 @@ public class Plugin : BaseUnityPlugin
         hiddenRenderers.Clear();
     }
 
-    // Vertex and position calculations
     private void CalculateVertOffset()
     {
         if (Target != null)
@@ -885,15 +826,15 @@ public class Plugin : BaseUnityPlugin
     {
         int amountOfHits = Physics.RaycastNonAlloc(ray, hits);
         int min = Math.Min(MAX_HITS, amountOfHits);
+
         for (int i = 0; i < min; i++)
         {
             RaycastHit hit = hits[i];
-            if (hit.transform == cursor.transform)
+            if (hit.transform == cursor?.transform || hit.transform == snappingCursor?.transform)
             {
                 continue;
             }
 
-            // Check if hit belongs to the current target
             if (currentTarget != null && (hit.transform == currentTarget.transform || hit.transform.IsChildOf(currentTarget.transform)))
             {
                 if (hit.transform.CompareTag(BLOCK_TAG))
@@ -904,7 +845,6 @@ public class Plugin : BaseUnityPlugin
             }
         }
 
-        // Fallback to plane intersection with the current target
         if (Target != null)
         {
             Vector3 normal = (cam.transform.position - Target.transform.position).normalized;
@@ -924,32 +864,24 @@ public class Plugin : BaseUnityPlugin
     private bool TryFindTargetVertex(Ray ray, out Vector3 targetVertex)
     {
         targetVertex = Vector3.zero;
-
         int amountOfHits = Physics.RaycastNonAlloc(ray, hits);
         int min = Math.Min(MAX_HITS, amountOfHits);
 
         for (int i = 0; i < min; i++)
         {
             RaycastHit hit = hits[i];
+            Transform hitTransform = hit.transform.root ?? hit.transform;
 
-            Transform hitTransform = hit.transform.root;
-            if (hitTransform == null)
-            {
-                hitTransform = hit.transform;
-            }
-
-            if (hitTransform == cursor.transform)
+            if (hitTransform == cursor?.transform || hitTransform == snappingCursor?.transform)
             {
                 continue;
             }
 
-            // Skip hologram objects
             if (holograms.Any(h => h != null && (hitTransform == h.transform || hitTransform.IsChildOf(h.transform))))
             {
                 continue;
             }
 
-            // Skip any of the original selected objects
             if (storedSelectedItems.Any(item => item != null && (hitTransform == item.transform || hitTransform.IsChildOf(item.transform))))
             {
                 continue;
@@ -968,7 +900,6 @@ public class Plugin : BaseUnityPlugin
         return false;
     }
 
-    // Snapping operations
     private void PerformSnap()
     {
         if (holograms.Count == 0 || storedSelectedItems.Count == 0 || holograms.Count != storedSelectedItems.Count)
@@ -977,7 +908,6 @@ public class Plugin : BaseUnityPlugin
             return;
         }
 
-        // Check if any object would move a significant distance
         bool anySignificantMove = false;
         for (int i = 0; i < storedSelectedItems.Count; i++)
         {
@@ -1001,13 +931,19 @@ public class Plugin : BaseUnityPlugin
             return;
         }
 
-        // Prepare undo/redo data
+        PrepareUndoData();
+        CreateUndoEntry();
+        DestroyAllHolograms();
+        MessengerApi.Log($"[VERTEX] {storedSelectedItems.Count} object(s) snapped successfully!");
+    }
+
+    private void PrepareUndoData()
+    {
         before.Clear();
         beforeSelection.Clear();
         after.Clear();
         afterSelection.Clear();
 
-        // Record before state and move objects
         for (int i = 0; i < storedSelectedItems.Count; i++)
         {
             if (storedSelectedItems[i] == null || holograms[i] == null)
@@ -1023,38 +959,29 @@ public class Plugin : BaseUnityPlugin
             after.Add(storedSelectedItems[i].ConvertBlockToJSON_v15_string(true));
             afterSelection.Add(storedSelectedItems[i].UID);
         }
+    }
 
-        // Create undo/redo entry
+    private void CreateUndoEntry()
+    {
         if (before.Count > 0)
         {
             Change_Collection changeCollection = central.undoRedo.ConvertBeforeAndAfterListToCollection(
-                before,
-                after,
-                storedSelectedItems,
-                beforeSelection,
-                afterSelection);
-
+                before, after, storedSelectedItems, beforeSelection, afterSelection);
             central.validation.BreakLock(changeCollection, "Gizmo6");
         }
-
-        DestroyAllHolograms();
-        MessengerApi.Log($"[VERTEX] {storedSelectedItems.Count} object(s) snapped successfully!");
     }
 
-    // Utility methods
     private Color ParseHexColor(string hex)
     {
-        // Remove # if present
         if (hex.StartsWith("#"))
         {
             hex = hex.Substring(1);
         }
 
-        // Default to cyan if parsing fails
         if (hex.Length != 6)
         {
             Logger.LogWarning($"Invalid hex color format: #{hex}. Using default cyan.");
-            return new Color(0f, 1f, 1f, 1f); // Cyan
+            return new Color(0f, 1f, 1f, 1f);
         }
 
         try
@@ -1062,22 +989,19 @@ public class Plugin : BaseUnityPlugin
             byte r = Convert.ToByte(hex.Substring(0, 2), 16);
             byte g = Convert.ToByte(hex.Substring(2, 2), 16);
             byte b = Convert.ToByte(hex.Substring(4, 2), 16);
-
             return new Color(r / 255f, g / 255f, b / 255f, 1f);
         }
         catch (Exception ex)
         {
             Logger.LogWarning($"Failed to parse hex color #{hex}: {ex.Message}. Using default cyan.");
-            return new Color(0f, 1f, 1f, 1f); // Cyan
+            return new Color(0f, 1f, 1f, 1f);
         }
     }
 
-    // Enums
-    // New vertex mode system
     private enum VertexMode
     {
         Inactive,
-        Positioning, // Phase 1: Positioning the cursor on selected object
-        Snapping // Phase 2: Roaming around to find target location
+        Positioning,
+        Snapping
     }
 }
