@@ -63,7 +63,6 @@ public class SnapExecutor
         {
             if (item != null)
             {
-               
                 data.BeforeData.Add(item.GetSaveData());
                 data.BeforeSelection.Add(item.uuid);
             }

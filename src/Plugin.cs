@@ -1,4 +1,6 @@
-﻿using BepInEx;
+﻿using System.Collections.Generic;
+using System.Linq;
+using BepInEx;
 using UnityEngine;
 using VertexSnapper.Core;
 using ZeepSDK.LevelEditor;
@@ -30,8 +32,7 @@ public class Plugin : BaseUnityPlugin
         // Subscribe to level editor events
         LevelEditorApi.EnteredLevelEditor += OnEnteredLevelEditor;
         LevelEditorApi.ExitedLevelEditor += OnExitedLevelEditor;
-        LevelEditorApi.ItemGotSelected += OnItemSelected;
-        LevelEditorApi.ItemGotDeselected += OnItemDeselected;
+        LevelEditorApi.SelectionChanged += OnSelectionChanged;
 
         logger.LogInfo("VertexSnapper initialized successfully");
     }
@@ -68,8 +69,7 @@ public class Plugin : BaseUnityPlugin
         // Unsubscribe from events
         LevelEditorApi.EnteredLevelEditor -= OnEnteredLevelEditor;
         LevelEditorApi.ExitedLevelEditor -= OnExitedLevelEditor;
-        LevelEditorApi.ItemGotSelected -= OnItemSelected;
-        LevelEditorApi.ItemGotDeselected -= OnItemDeselected;
+        LevelEditorApi.SelectionChanged -= OnSelectionChanged;
     }
 
     private void OnEnteredLevelEditor()
@@ -102,52 +102,62 @@ public class Plugin : BaseUnityPlugin
         data.Camera = null;
     }
 
-    private void OnItemSelected(BlockProperties item)
+    private void OnSelectionChanged(List<BlockProperties> selectedItems)
     {
-        if (item != null && !data.SelectedItems.Contains(item))
-        {
-            data.SelectedItems.Add(item);
-            logger.LogDebug($"Item selected: {item.name} (total: {data.SelectedItems.Count})");
+        // Store previous selection for comparison
+        List<BlockProperties> previousSelection = new List<BlockProperties>(data.SelectedItems);
 
-            // If this is the first selected item, make it the current target
-            if (data.SelectedItems.Count == 1)
+        // Update current selection
+        data.SelectedItems.Clear();
+        if (selectedItems != null)
+        {
+            data.SelectedItems.AddRange(selectedItems);
+        }
+
+        logger.LogDebug($"Selection changed: {data.SelectedItems.Count} items selected");
+
+        // Find newly selected items
+        List<BlockProperties> newlySelected = data.SelectedItems.Except(previousSelection).ToList();
+        foreach (BlockProperties item in newlySelected)
+        {
+            logger.LogDebug($"Item selected: {item.name}");
+        }
+
+        // Find deselected items
+        List<BlockProperties> deselected = previousSelection.Except(data.SelectedItems).ToList();
+        foreach (BlockProperties item in deselected)
+        {
+            logger.LogDebug($"Item deselected: {item.name}");
+        }
+
+        // Update current target
+        if (data.SelectedItems.Count > 0)
+        {
+            // If current target is still selected, keep it
+            if (data.CurrentTarget != null && data.SelectedItems.Contains(data.CurrentTarget))
             {
-                data.CurrentTarget = item;
-                if (item.transform != null)
+                // Keep current target
+            }
+            else
+            {
+                // Set new target to first selected item
+                data.CurrentTarget = data.SelectedItems[0];
+                if (data.CurrentTarget?.transform != null)
                 {
-                    data.MeshFilters = item.transform.GetComponentsInChildren<MeshFilter>();
+                    data.MeshFilters = data.CurrentTarget.transform.GetComponentsInChildren<MeshFilter>();
                 }
+
+                logger.LogDebug($"New target set: {data.CurrentTarget.name}");
             }
         }
-    }
-
-    private void OnItemDeselected(BlockProperties item)
-    {
-        if (item != null && data.SelectedItems.Contains(item))
+        else
         {
-            data.SelectedItems.Remove(item);
-            logger.LogDebug($"Item deselected: {item.name} (total: {data.SelectedItems.Count})");
+            // No items selected
+            data.CurrentTarget = null;
+            data.MeshFilters = null;
 
-            // If we deselected the current target, pick a new one
-            if (data.CurrentTarget == item)
-            {
-                if (data.SelectedItems.Count > 0)
-                {
-                    data.CurrentTarget = data.SelectedItems[0];
-                    if (data.CurrentTarget?.transform != null)
-                    {
-                        data.MeshFilters = data.CurrentTarget.transform.GetComponentsInChildren<MeshFilter>();
-                    }
-                }
-                else
-                {
-                    data.CurrentTarget = null;
-                    data.MeshFilters = null;
-                }
-            }
-
-            // If no items are selected and we're active, return to inactive
-            if (data.SelectedItems.Count == 0 && stateMachine.IsActive)
+            // If we're active and no items are selected, return to inactive
+            if (stateMachine.IsActive)
             {
                 stateMachine.TransitionTo(VertexSnapMode.Inactive, "No items selected");
             }
