@@ -44,20 +44,20 @@ public class Plugin : BaseUnityPlugin
     private VertexMode currentMode = VertexMode.Inactive;
     private BlockProperties currentTarget;
     private Transform cursor;
-    private Transform snappingCursor; // New cursor for snapping mode
     private ConfigEntry<string> hologramColor;
     private bool isInEditor;
-
-    // Configuration
-    private ConfigEntry<KeyCode> VertexActivationKey;
 
     // Runtime data
     private MeshFilter[] meshFilters;
     private float pulseTime;
     private ConfigEntry<float> selectionRadius;
+    private Transform snappingCursor; // New cursor for snapping mode
     private BlockProperties storedPrimaryTarget;
     private Vector3 storedVertexPosition;
     private Vector3 storedVertOffset;
+
+    // Configuration
+    private ConfigEntry<KeyCode> VertexActivationKey;
     private Vector3 vertOffset;
     private bool wasKeyDownLastFrame;
 
@@ -214,7 +214,7 @@ public class Plugin : BaseUnityPlugin
         storedSelectedItems.AddRange(selectedItems);
 
         storedRelativePositions.Clear();
-        
+
         foreach (BlockProperties item in storedSelectedItems)
         {
             storedRelativePositions.Add(item.transform.position);
@@ -454,7 +454,7 @@ public class Plugin : BaseUnityPlugin
         snappingCursor.localScale = Vector3.one * selectionRadius.Value * 1.2f; // Slightly larger for distinction
         Renderer ren = snappingCursor.GetComponent<Renderer>();
         ren.material = CreateSnappingCursorMaterial();
-        
+
         snappingCursor.GetComponent<Collider>().enabled = false;
     }
 
@@ -728,7 +728,7 @@ public class Plugin : BaseUnityPlugin
             float fastAlpha = Mathf.Lerp(0.5f, 1f, (Mathf.Sin(pulseTime * PULSE_SPEED * 2f) + 1f) * 0.5f);
             Color baseColor = new Color(1f, 0.8f, 0f, fastAlpha);
             cursorRenderer.material.color = baseColor;
-            
+
             if (cursorRenderer.material.IsKeywordEnabled("_EMISSION"))
             {
                 cursorRenderer.material.SetColor("_EmissionColor", baseColor * 2f);
@@ -776,6 +776,7 @@ public class Plugin : BaseUnityPlugin
             Destroy(cursor.gameObject);
             cursor = null;
         }
+
         DestroySnappingCursor();
     }
 
