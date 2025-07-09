@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 using UnityEngine.Rendering;
 using VertexSnapper.States;
@@ -21,16 +20,16 @@ public class VertexHologramManager : MonoBehaviour
         _stateMachine = stateMachine;
         foreach (BlockProperties blockProperty in _stateMachine.BlockSelection)
         {
-            List<MeshRenderer> allMeshRenderers = new List<MeshRenderer>();
-            
+            List<Renderer> allMeshRenderers = new List<Renderer>();
+
             // 1. Hole alle MeshRenderer vom GameObject selbst
-            allMeshRenderers.AddRange(blockProperty.GetComponents<MeshRenderer>());
-        
+            allMeshRenderers.AddRange(blockProperty.GetComponents<Renderer>());
+
             // 2. Hole alle MeshRenderer von allen Kindern (aktive UND inaktive)
-            allMeshRenderers.AddRange(blockProperty.GetComponentsInChildren<MeshRenderer>(true));
-            
-        
-            foreach (MeshRenderer meshRenderer in allMeshRenderers)
+            allMeshRenderers.AddRange(blockProperty.GetComponentsInChildren<Renderer>(true));
+
+
+            foreach (Renderer meshRenderer in allMeshRenderers)
             {
                 if (meshRenderer == null || meshRenderer.sharedMaterial == null)
                 {
