@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.Rendering;
 using VertexSnapper.States;
@@ -20,24 +21,14 @@ public class VertexHologramManager : MonoBehaviour
         _stateMachine = stateMachine;
         foreach (BlockProperties blockProperty in _stateMachine.BlockSelection)
         {
-            List<Renderer> allMeshRenderers = new List<Renderer>();
-
-            // 1. Hole alle MeshRenderer vom GameObject selbst
-            allMeshRenderers.AddRange(blockProperty.GetComponents<Renderer>());
-
-            // 2. Hole alle MeshRenderer von allen Kindern (aktive UND inaktive)
-            allMeshRenderers.AddRange(blockProperty.GetComponentsInChildren<Renderer>(true));
-
-
-            foreach (Renderer meshRenderer in allMeshRenderers)
+            
+            List<Renderer> renderers = blockProperty.GetComponentsInChildren<Renderer>().ToList();
+            foreach (Renderer renderer in renderers)
             {
-                if (meshRenderer == null || meshRenderer.sharedMaterial == null)
-                {
-                    continue;
-                }
 
-                _originMaterial = meshRenderer.sharedMaterial;
-                meshRenderer.material = CreateWaterMaterial(Color.cyan);
+                _originMaterial = renderer.sharedMaterial;
+                renderer.material = CreateWaterMaterial(Color.cyan);
+                // renderer.sharedMaterial = CreateWaterMaterial(Color.cyan);
             }
         }
     }
@@ -63,7 +54,7 @@ public class VertexHologramManager : MonoBehaviour
 
         // Emission für Glow-Effekt
         material.EnableKeyword("_EMISSION");
-        material.SetColor("_EmissionColor", baseColor * 0.5f);
+        material.SetColor("_EmissionColor", baseColor * 2f);
 
         // Metallic/Smoothness für wasserähnlichen Look
         material.SetFloat("_Metallic", 0.1f);

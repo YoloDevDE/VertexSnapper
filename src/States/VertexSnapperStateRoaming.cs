@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 using VertexSnapper.Interfaces;
 using VertexSnapper.Util;
+using ZeepSDK.LevelEditor;
 
 namespace VertexSnapper.States;
 
@@ -12,7 +13,8 @@ public class VertexSnapperStateRoaming : IState
     public void Enter(IStateMachine stateMachine)
     {
         StateMachine = stateMachine;
-        GameObject managerObject = new GameObject("VertexSelectionManager");
+        LevelEditorApi.BlockMouseInput(this);
+        GameObject managerObject = new GameObject("VertexHologramManager");
         VertexHologramManager = managerObject.AddComponent<VertexHologramManager>();
         VertexHologramManager.Initialize(StateMachine as GameStateMachine);
     }
