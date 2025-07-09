@@ -3,6 +3,7 @@ using VertexSnapper.Config;
 using VertexSnapper.Input;
 using VertexSnapper.Interfaces;
 using VertexSnapper.Util;
+using ZeepSDK.LevelEditor;
 using Logger = VertexSnapper.Util.Logger;
 
 namespace VertexSnapper.States;
@@ -15,6 +16,7 @@ public class VertexSnapperStateSelectionOriginVertex : IState
     public void Enter(IStateMachine stateMachine)
     {
         StateMachine = stateMachine;
+        LevelEditorApi.BlockMouseInput(this);
         Logger.LogInfo("Entering VertexSnapperStateSelectionOriginVertex");
 
         // Cast to GameStateMachine to access the specific properties
@@ -36,6 +38,7 @@ public class VertexSnapperStateSelectionOriginVertex : IState
 
     public void Exit()
     {
+        LevelEditorApi.UnblockMouseInput(this);
         Logger.LogInfo("Exiting VertexSnapperStateSelectionOriginVertex");
 
         // Cleanup vertex selection manager
