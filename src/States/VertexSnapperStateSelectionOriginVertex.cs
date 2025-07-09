@@ -2,7 +2,6 @@
 using VertexSnapper.Config;
 using VertexSnapper.Input;
 using VertexSnapper.Interfaces;
-using VertexSnapper.Util;
 using ZeepSDK.LevelEditor;
 using Logger = VertexSnapper.Util.Logger;
 
@@ -34,6 +33,7 @@ public class VertexSnapperStateSelectionOriginVertex : IState
 
         // Subscribe to input
         KeyInput.GetKey(VertexSnapperConfig.Instance.SnapperMode.Value).OnKeyUp += HandleSnapperModeKeyUp;
+        KeyInput.GetKey(KeyCode.Mouse0).OnKeyDown += HandleMouseClick;
     }
 
     public void Exit()
@@ -50,10 +50,32 @@ public class VertexSnapperStateSelectionOriginVertex : IState
 
         // Unsubscribe from input
         KeyInput.GetKey(VertexSnapperConfig.Instance.SnapperMode.Value).OnKeyUp -= HandleSnapperModeKeyUp;
+        KeyInput.GetKey(KeyCode.Mouse0).OnKeyDown -= HandleMouseClick;
     }
 
     private void HandleSnapperModeKeyUp()
     {
         StateMachine.ChangeState(new VertexSnapperStateIdle());
+    }
+
+    private void HandleMouseClick()
+    {
+        GameStateMachine gameStateMachine = StateMachine as GameStateMachine;
+        if (gameStateMachine == null)
+        {
+            Logger.LogError("StateMachine is not a GameStateMachine!");
+            return;
+        }
+
+        // Check if a vertex was selected (VertexOrigin is set)
+        if (gameStateMachine.VertexOrigin != Vector3.zero)
+        {
+            Logger.LogInfo($"Vertex found at: {gameStateMachine.VertexOrigin}, switching to Roaming state");
+            StateMachine.ChangeState(new VertexSnapperStateRoaming());
+        }
+        else
+        {
+            Logger.LogInfo("No vertex selected, staying in current state");
+        }
     }
 }
