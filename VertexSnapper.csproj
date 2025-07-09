@@ -23,8 +23,8 @@
         <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all"/>
         <PackageReference Include="BepInEx.Core" Version="5.*"/>
         <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*"/>
-        <PackageReference Include="Zeepkist.GameLibs" Version="17.12.1825"/>
-        <PackageReference Include="ZeepSDK" Version="1.45.1"/>
+        <PackageReference Include="Zeepkist.GameLibs" Version="17.14.1858"/>
+        <PackageReference Include="ZeepSDK" Version="1.45.2"/>
     </ItemGroup>
 
     <ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
@@ -33,6 +33,12 @@
 
     <ItemGroup>
         <Reference Include="Microsoft.CSharp"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Update="src\States\VertexSnapperStateRoaming.cs">
+            <DependentUpon>VertexSnapperContext.cs</DependentUpon>
+        </Compile>
     </ItemGroup>
 
     <!-- Post-Build Scripts -->
@@ -45,6 +51,9 @@
 
         <!-- Copy DLL to the plugin directory -->
         <Exec Command="copy /Y &quot;$(TargetDir)$(ProjectName).dll&quot; &quot;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)\$(ProjectName)-$(Version).dll&quot;"/>
+
+        <!-- Copy Assets folder if it exists -->
+        <Exec Command="if exist &quot;$(ProjectDir)Assets&quot; xcopy /E /I /Y &quot;$(ProjectDir)Assets&quot; &quot;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)\Assets&quot;"/>
 
         <!-- Create a zip file from the directory -->
         <Exec Command="powershell -Command &quot;Compress-Archive -Path &quot;&apos;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)\*&apos;&quot; -DestinationPath &quot;&apos;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)-$(Version).zip&apos;&quot; -Force&quot;"/>
