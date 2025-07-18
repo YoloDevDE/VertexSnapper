@@ -10,23 +10,23 @@ public class VertexSnapperConfig
 
     // Configuration entries for buttons
     public ConfigEntry<KeyCode> SnapperMode { get; private set; }
-    public ConfigEntry<KeyCode> Button2Config { get; private set; }
+    public ConfigEntry<KeyCode> VertexMode { get; private set; }
 
     public void Initialize(ConfigFile config)
     {
         // Bind button configurations
         SnapperMode = config.Bind(
             "Controls",
-            "Button1",
+            "SnapperMode",
             KeyCode.F1,
-            "First button keybind"
+            "Snapper mode keybind"
         );
 
-        Button2Config = config.Bind(
+        VertexMode = config.Bind(
             "Controls",
-            "Button2",
-            KeyCode.F2,
-            "Second button keybind"
+            "VertexMode",
+            KeyCode.LeftControl,
+            "Vertex mode keybind for snapping objects"
         );
     }
 }

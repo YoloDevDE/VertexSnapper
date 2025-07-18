@@ -35,12 +35,6 @@
         <Reference Include="Microsoft.CSharp"/>
     </ItemGroup>
 
-    <ItemGroup>
-        <Compile Update="src\States\VertexSnapperStateRoaming.cs">
-            <DependentUpon>VertexSnapperContext.cs</DependentUpon>
-        </Compile>
-    </ItemGroup>
-
     <!-- Post-Build Scripts -->
     <Target Name="PostBuild" AfterTargets="PostBuildEvent">
         <!-- Delete the plugin directory if it exists -->
