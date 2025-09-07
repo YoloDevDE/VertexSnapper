@@ -27,11 +27,13 @@ public static class KeyInput
             if (UnityEngine.Input.GetKeyDown(keyCode))
             {
                 events.TriggerKeyDown();
+                continue;
             }
 
             if (UnityEngine.Input.GetKeyUp(keyCode))
             {
                 events.TriggerKeyUp();
+                continue;
             }
 
             if (UnityEngine.Input.GetKey(keyCode))
