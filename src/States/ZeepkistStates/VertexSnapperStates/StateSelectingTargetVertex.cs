@@ -1,8 +1,8 @@
 ﻿using VertexSnapper.Interfaces;
 
-namespace VertexSnapper.States;
+namespace VertexSnapper.States.ZeepkistStates.VertexSnapperStates;
 
-public class VertexSnapperStateSnapping : IState
+public class StateSelectingTargetVertex : IState
 {
     public IStateMachine StateMachine { get; set; }
 

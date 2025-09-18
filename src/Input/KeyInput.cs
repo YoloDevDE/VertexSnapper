@@ -19,11 +19,8 @@ public static class KeyInput
 
     public static void Update()
     {
-        foreach (KeyValuePair<KeyCode, KeyEvents> kvp in KeyEvents)
+        foreach ((KeyCode keyCode, KeyEvents events) in KeyEvents)
         {
-            KeyCode keyCode = kvp.Key;
-            KeyEvents events = kvp.Value;
-
             if (UnityEngine.Input.GetKeyDown(keyCode))
             {
                 events.TriggerKeyDown();

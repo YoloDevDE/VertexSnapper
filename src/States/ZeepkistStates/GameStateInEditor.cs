@@ -1,8 +1,10 @@
 ﻿using UnityEngine;
 using VertexSnapper.Interfaces;
+using VertexSnapper.Managers;
+using VertexSnapper.States.ZeepkistStates.VertexSnapperStates;
 using ZeepSDK.LevelEditor;
 
-namespace VertexSnapper.States;
+namespace VertexSnapper.States.ZeepkistStates;
 
 public class GameStateInEditor : IState
 {
@@ -21,7 +23,7 @@ public class GameStateInEditor : IState
 
 
         VertexSnapperStateMachine = new GameStateMachine();
-        VertexSnapperStateMachine.ChangeState(new VertexSnapperStateIdle());
+        VertexSnapperStateMachine.ChangeState(new StateIdle());
     }
 
 

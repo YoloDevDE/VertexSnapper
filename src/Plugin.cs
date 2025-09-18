@@ -3,6 +3,7 @@ using HarmonyLib;
 using VertexSnapper.Config;
 using VertexSnapper.Input;
 using VertexSnapper.States;
+using VertexSnapper.States.ZeepkistStates;
 
 namespace VertexSnapper;
 

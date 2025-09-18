@@ -1,11 +1,11 @@
 ﻿using VertexSnapper.Config;
 using VertexSnapper.Input;
 using VertexSnapper.Interfaces;
-using VertexSnapper.Util;
+using ZeepSDK.Messaging;
 
-namespace VertexSnapper.States;
+namespace VertexSnapper.States.ZeepkistStates.VertexSnapperStates;
 
-public class VertexSnapperStateIdle : IState
+public class StateIdle : IState
 {
     public IStateMachine StateMachine { get; set; }
 
@@ -22,7 +22,7 @@ public class VertexSnapperStateIdle : IState
 
     private void HandleSnapperModeKeyDown()
     {
-        Logger.LogInfo("Snap vertex from idle state!");
-        StateMachine.ChangeState(new VertexSnapperStateSelectionOriginVertex());
+        MessengerApi.Log("SnapperModeKeyDown");
+        StateMachine.ChangeState(new StateSelectingOriginVertex());
     }
 }

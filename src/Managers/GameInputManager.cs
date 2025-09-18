@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 using VertexSnapper.Input;
 
-namespace VertexSnapper;
+namespace VertexSnapper.Managers;
 
 public class GameInputManager : MonoBehaviour
 {

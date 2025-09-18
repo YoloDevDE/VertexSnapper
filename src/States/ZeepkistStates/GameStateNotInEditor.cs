@@ -1,7 +1,7 @@
 ﻿using VertexSnapper.Interfaces;
 using ZeepSDK.LevelEditor;
 
-namespace VertexSnapper.States;
+namespace VertexSnapper.States.ZeepkistStates;
 
 public class GameStateNotInEditor : IState
 {
