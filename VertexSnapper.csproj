@@ -3,8 +3,8 @@
     <!-- General Project Properties -->
     <PropertyGroup>
         <TargetFramework>net472</TargetFramework>
-        <Description>a</Description>
-        <Version>1.17.0</Version>
+        <Description>Cool Stuff</Description>
+        <Version>3.17.1</Version>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <LangVersion>latest</LangVersion>
         <PackageId>VertexSnapper</PackageId>
@@ -13,7 +13,7 @@
             https://nuget.bepinex.dev/v3/index.json;
             https://nuget.samboy.dev/v3/index.json
         </RestoreAdditionalProjectSources>
-        <Authors>Thundernerd</Authors>
+        <Authors>Thundernerd, Yolo</Authors>
         <Title>VertexSnapper</Title>
         <ImplicitUsings>disable</ImplicitUsings>
     </PropertyGroup>
@@ -23,8 +23,9 @@
         <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all"/>
         <PackageReference Include="BepInEx.Core" Version="5.*"/>
         <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*"/>
-        <PackageReference Include="Zeepkist.GameLibs" Version="17.12.1825"/>
-        <PackageReference Include="ZeepSDK" Version="1.45.1"/>
+        <PackageReference Include="System.Reactive" Version="6.1.0"/>
+        <PackageReference Include="Zeepkist.GameLibs" Version="17.15.1867"/>
+        <PackageReference Include="ZeepSDK" Version="1.45.10"/>
     </ItemGroup>
 
     <ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
@@ -33,6 +34,10 @@
 
     <ItemGroup>
         <Reference Include="Microsoft.CSharp"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Remove="src\WireframeMaterial.cs"/>
     </ItemGroup>
 
     <!-- Post-Build Scripts -->
