@@ -13,7 +13,10 @@ public class StateSelectOriginVertex : IVertexSnapperState<VertexSnapper>
         KeyInputManager.OnKeyUp[VertexSnapperConfigManager.VertexKeyBind.Value] += ChangeStateToIdle;
         KeyInputManager.OnMouseDown[0] += TryChangeStateToRoaming;
         LevelEditorApi.BlockMouseInput(this);
+        LevelEditorApi.BlockKeyboardInput(this);
         VertexSnapper.CacheAndRemoveBlockSelection();
+        VertexSnapper.ApplyWireframeMaterial();
+        MessengerApi.Log("[Vertexsnapper] Im gonna  snap! <sprite=\"moremojis\" name=\"ZaagBladPadRood2\">", 0.6f);
     }
 
     public void Exit()
@@ -21,7 +24,7 @@ public class StateSelectOriginVertex : IVertexSnapperState<VertexSnapper>
         KeyInputManager.OnKeyUp[VertexSnapperConfigManager.VertexKeyBind.Value] -= ChangeStateToIdle;
         KeyInputManager.OnMouseDown[0] -= TryChangeStateToRoaming;
         LevelEditorApi.UnblockMouseInput(this);
-        VertexSnapper.ReAddPreviousBlockSelection();
+        LevelEditorApi.UnblockKeyboardInput(this);
     }
 
     public void Update()
@@ -39,13 +42,14 @@ public class StateSelectOriginVertex : IVertexSnapperState<VertexSnapper>
 
     private bool OriginIsValid()
     {
-        MessengerApi.LogSuccess("Valid!");
         return VertexSnapper;
     }
 
     private void ChangeStateToIdle()
     {
-        VertexSnapper.SafeDestroy(VertexSnapper.OriginVertexPoint.gameObject);
+        VertexSnapper.ReAddPreviousBlockSelection();
+        VertexSnapper.DestroyAllWireframeClones();
+        MessengerApi.Log("[Vertexsnapper] Im not gonna snap <sprite=\"Zeepkist\" name=\"YannicSmile\">", 0.6f);
         VertexSnapper.ChangeState(new StateIdle());
     }
 }

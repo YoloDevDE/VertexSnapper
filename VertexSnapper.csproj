@@ -36,9 +36,6 @@
         <Reference Include="Microsoft.CSharp"/>
     </ItemGroup>
 
-    <ItemGroup>
-        <Compile Remove="src\WireframeMaterial.cs"/>
-    </ItemGroup>
 
     <!-- Post-Build Scripts -->
     <Target Name="PostBuild" AfterTargets="PostBuildEvent">
@@ -50,7 +47,8 @@
 
         <!-- Copy DLL to the plugin directory -->
         <Exec Command="copy /Y &quot;$(TargetDir)$(ProjectName).dll&quot; &quot;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)\$(ProjectName)-$(Version).dll&quot;"/>
-
+        <!-- Copy assets folder recursively -->
+        <Exec Command="xcopy /E /I /Y &quot;$(ProjectDir)assets&quot; &quot;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)\assets&quot;"/>
         <!-- Create a zip file from the directory -->
         <Exec Command="powershell -Command &quot;Compress-Archive -Path &quot;&apos;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)\*&apos;&quot; -DestinationPath &quot;&apos;C:\Program Files (x86)\Steam\steamapps\common\Zeepkist\BepInEx\plugins\Sideloaded\Plugins\$(ProjectName)-$(Version).zip&apos;&quot; -Force&quot;"/>
     </Target>
