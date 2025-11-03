@@ -10,7 +10,6 @@ public class StateIdle : IVertexSnapperState<VertexSnapper>
 
     public void Enter()
     {
-        VertexSnapper.RestoreDefaultState();
         KeyInputManager.OnKeyDown[_vertexKey] += ChangeStateToSelectOriginVertex;
     }
 
@@ -23,6 +22,9 @@ public class StateIdle : IVertexSnapperState<VertexSnapper>
 
     private void ChangeStateToSelectOriginVertex()
     {
-        VertexSnapper.ChangeState(new StateSelectOriginVertex());
+        if (VertexSnapper.LevelEditorCentral.selection.list.Count > 0)
+        {
+            VertexSnapper.ChangeState(new StateSelectOriginVertex());
+        }
     }
 }
