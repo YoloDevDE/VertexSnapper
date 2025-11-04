@@ -1,4 +1,4 @@
-﻿namespace VertexSnapper;
+﻿namespace VertexSnapper.States;
 
 public interface IVertexSnapperState<T>
 {

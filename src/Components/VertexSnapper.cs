@@ -6,19 +6,22 @@ using BepInEx.Logging;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.UIElements;
+using VertexSnapper.Helper;
+using VertexSnapper.Managers;
+using VertexSnapper.States;
 using ZeepSDK.LevelEditor;
 
-namespace VertexSnapper;
+namespace VertexSnapper.Components;
 
 public class VertexSnapper : MonoBehaviour
 {
     // 1) Constants
-    private const float PULSE_SPEED = 6f;
+    private const float PULSE_SPEED = 1f;
     private const float MIN_ALPHA = 0.2f;
     private const float MAX_ALPHA = 0.8f;
 
     // 2) Static fields
-    private static readonly Color ORIGIN_BASE_COLOR = new Color(0f, 1f, 0.5f, 1f);
+    private static readonly Color ORIGIN_BASE_COLOR = new Color(1f, 0f, 1f, 1f);
     private static readonly List<string> Before = new List<string>();
     private static readonly List<string> BeforeSelection = new List<string>();
     private static readonly List<string> After = new List<string>();
@@ -40,7 +43,7 @@ public class VertexSnapper : MonoBehaviour
     public LEV_LevelEditorCentral LevelEditorCentral { get; private set; }
     public Transform FirstVertex { get; set; }
     public Transform SecondVertex { get; set; }
-    private Camera MainCamera => _camera = _camera ? _camera : Camera.main;
+    public Camera MainCamera => _camera = _camera ? _camera : Camera.main;
     private ManualLogSource Logger => Plugin.Instance.Logger;
     public IVertexSnapperState<VertexSnapper> CurrentState { get; set; }
     public GameObject VertexsnapperHologram { get; set; }
@@ -196,7 +199,7 @@ public class VertexSnapper : MonoBehaviour
                     Material[] mats = new Material[Mathf.Max(1, srcMats?.Length ?? 1)];
                     for (int i = 0; i < mats.Length; i++)
                     {
-                        mats[i] = TransparentHologramMaterial(hologramColor, 1.5);
+                        mats[i] = WireframeBundleLoader.WireframeMaterial;
                     }
 
                     mr.sharedMaterials = mats;
@@ -217,7 +220,7 @@ public class VertexSnapper : MonoBehaviour
                     Material[] mats = new Material[Mathf.Max(1, srcMats?.Length ?? 1)];
                     for (int i = 0; i < mats.Length; i++)
                     {
-                        mats[i] = TransparentHologramMaterial(hologramColor);
+                        mats[i] = WireframeBundleLoader.WireframeMaterial;
                     }
 
                     mr.sharedMaterials = mats;
@@ -449,6 +452,7 @@ public class VertexSnapper : MonoBehaviour
         RemoveAllWireframeMaterial();
         SafeDestroy(FirstVertex);
         FirstVertex = null;
+        TriangleHighlighter.Clear();
         ReAddPreviousBlockSelection();
     }
 
@@ -458,28 +462,28 @@ public class VertexSnapper : MonoBehaviour
         float a = Mathf.Lerp(MIN_ALPHA, MAX_ALPHA, (Mathf.Sin(phase) + 1f) * 0.5f);
 
         // Apply pulse to the hologram GO instead of the old _holograms list
-        if (VertexsnapperHologram)
+        if (!VertexsnapperHologram)
         {
-            IEnumerable<Material> hologramMaterials = VertexsnapperHologram
-                                                      .GetComponentsInChildren<Renderer>(true)
-                                                      .Where(r => r)
-                                                      .Select(r => r.materials)
-                                                      .SelectMany(m => m)
-                                                      .Where(m => m != null);
+            return;
+        }
 
-            foreach (Material material in hologramMaterials)
-            {
-                SetMaterialOpacity(material, a);
-            }
+        IEnumerable<Material> hologramMaterials = VertexsnapperHologram
+                                                  .GetComponentsInChildren<Renderer>(true)
+                                                  .Where(r => r)
+                                                  .Select(r => r.materials)
+                                                  .SelectMany(m => m)
+                                                  .Where(m => m != null);
+
+        foreach (Material material in hologramMaterials)
+        {
+            SetMaterialOpacity(material, a);
         }
     }
 
     // 7) Private helpers
     private void SetMaterialOpacity(Material material, float a)
     {
-        Color color = material.color;
-        color.a = a;
-        material.color = color;
+        material.SetFloat("_FillAlpha", a);
     }
 
     private Vector3 GetClosestWorldVertexInMeshes(IEnumerable<MeshFilter> targetMeshes, Vector3 target)
@@ -500,11 +504,13 @@ public class VertexSnapper : MonoBehaviour
             {
                 Vector3 world = t.TransformPoint(v);
                 float dist = (target - world).sqrMagnitude;
-                if (dist <= minDist)
+                if (dist > minDist)
                 {
-                    minDist = dist;
-                    closest = world;
+                    continue;
                 }
+
+                minDist = dist;
+                closest = world;
             }
         }
 
@@ -520,7 +526,6 @@ public class VertexSnapper : MonoBehaviour
         renderer.shadowCastingMode = ShadowCastingMode.Off;
         renderer.receiveShadows = false;
         renderer.sharedMaterial = TransparentHologramMaterial(ORIGIN_BASE_COLOR);
-        ;
 
         return sphereGameObject;
     }
@@ -551,178 +556,4 @@ public class VertexSnapper : MonoBehaviour
             return Color.white;
         }
     }
-
-    // public void CreateAllHolograms()
-    // {
-    //     foreach (BlockProperties block in PreviouslySelectedBlocks.Where(block => block))
-    //     {
-    //         _holograms.Add(CreateHologramForItem(block));
-    //     }
-    // }
-    //
-    // private GameObject CreateHologramForItem(BlockProperties item)
-    // {
-    //     GameObject hologramForItem = new GameObject("VertexSnapHologram_" + item.name)
-    //     {
-    //         transform =
-    //         {
-    //             position = item.transform.position,
-    //             rotation = item.transform.rotation,
-    //             localScale = item.transform.localScale
-    //         }
-    //     };
-    //     List<Renderer> componentsInChildren = item.GetComponentsInChildren<Renderer>().ToList();
-    //     foreach (Renderer componentsInChild in componentsInChildren)
-    //     {
-    //         GameObject hologramRenderer = new GameObject(componentsInChild.name + "_Hologram")
-    //         {
-    //             transform =
-    //             {
-    //                 position = componentsInChild.transform.position,
-    //                 rotation = componentsInChild.transform.rotation,
-    //                 localScale = componentsInChild.transform.lossyScale
-    //             }
-    //         };
-    //         hologramRenderer.transform.SetParent(hologramForItem.transform, true);
-    //         MeshRenderer meshRenderer = hologramRenderer.AddComponent<MeshRenderer>();
-    //         MeshFilter meshFilter = hologramRenderer.AddComponent<MeshFilter>();
-    //         MeshFilter meshFilterComponent = componentsInChild.GetComponent<MeshFilter>();
-    //         if (meshFilterComponent)
-    //         {
-    //             meshFilter.sharedMesh = meshFilterComponent.sharedMesh;
-    //         }
-    //
-    //         Material[] wireframeMaterials = new Material[componentsInChild.materials.Length];
-    //
-    //         for (int index = 1; index < wireframeMaterials.Length; index++)
-    //         {
-    //             wireframeMaterials[index] = WireframeBundleLoader.WireframeMaterial;
-    //         }
-    //
-    //         meshRenderer.materials = wireframeMaterials;
-    //     }
-    //
-    //     return hologramForItem;
-    // }
-    //
-    // private void DestroyAllHolograms()
-    // {
-    //     foreach (GameObject hologram in _holograms)
-    //     {
-    //         if (!hologram)
-    //         {
-    //             continue;
-    //         }
-    //
-    //         Destroy(hologram);
-    //     }
-    //
-    //     _holograms.Clear();
-    // }
-
-    // private void UpdateHologramPositions(Vector3 targetVertex)
-    // {
-    //
-    //     Vector3 vector3_1 = targetVertex - _storedVertexPosition;
-    //     for (int index = 0; index < _holograms.Count; ++index)
-    //     {
-    //         if (_holograms[index] != null && index < _storedRelativePositions.Count)
-    //         {
-    //             Vector3 vector3_2 = _storedRelativePositions[index] + vector3_1;
-    //             _holograms[index].transform.position = vector3_2;
-    //             _holograms[index].transform.rotation = SelectedBlocks[index].transform.rotation;
-    //         }
-    //     }
-    // }
-
-    // public void UpdateHologramPulse()
-    // {
-    //     if (_holograms.Count == 0)
-    //     {
-    //         return;
-    //     }
-    //
-    //     float num = Mathf.Lerp(0.1f, 0.7f, (float)((Mathf.Sin(_pulseTime * 4f) + 1.0) * 0.5));
-    //     foreach (GameObject hologram in _holograms)
-    //     {
-    //         if (hologram == null)
-    //         {
-    //             continue;
-    //         }
-    //
-    //         foreach (Renderer componentsInChild in hologram.GetComponentsInChildren<Renderer>())
-    //         foreach (Material material in componentsInChild.materials)
-    //         {
-    //             if (material == null)
-    //             {
-    //                 continue;
-    //             }
-    //
-    //             Color color1 = material.color with { a = num };
-    //             material.color = color1;
-    //             if (material.IsKeywordEnabled("_EMISSION"))
-    //             {
-    //                 Color color2 = material.GetColor("_EmissionColor") with
-    //                 {
-    //                     a = num * 0.5f
-    //                 };
-    //                 material.SetColor("_EmissionColor", color2);
-    //             }
-    //         }
-    //     }
-    // }
-    // private void PerformSnap()
-    // {
-    //     if (_holograms.Count == 0 || PreviouslySelectedBlocks.Count == 0 || _holograms.Count != PreviouslySelectedBlocks.Count)
-    //     {
-    //         MessengerApi.LogError("[Vertexsnapper] Snap failed - hologram/selection mismatch");
-    //     }
-    //     else
-    //     {
-    //         bool flag = false;
-    //         for (int index = 0; index < PreviouslySelectedBlocks.Count; ++index)
-    //         {
-    //             if (!(PreviouslySelectedBlocks[index] == null) &&
-    //                 !(_holograms[index] == null) &&
-    //                 Vector3.Distance(_holograms[index].transform.position, PreviouslySelectedBlocks[index].transform.position) >= 0.01)
-    //             {
-    //                 flag = true;
-    //                 break;
-    //             }
-    //         }
-    //
-    //         if (!flag)
-    //         {
-    //             MessengerApi.LogError("[Vertexsnapper] Snap cancelled (too close to current positions)");
-    //         }
-    //         else
-    //         {
-    //             Before.Clear();
-    //             BeforeSelection.Clear();
-    //             After.Clear();
-    //             AfterSelection.Clear();
-    //             for (int index = 0; index < PreviouslySelectedBlocks.Count; ++index)
-    //             {
-    //                 if (!(PreviouslySelectedBlocks[index] == null) && !(_holograms[index] == null))
-    //                 {
-    //                     Before.Add(PreviouslySelectedBlocks[index].ConvertBlockToJSON_v15_string(true));
-    //                     BeforeSelection.Add(PreviouslySelectedBlocks[index].UID);
-    //                     PreviouslySelectedBlocks[index].transform.position = _holograms[index].transform.position;
-    //                     After.Add(PreviouslySelectedBlocks[index].ConvertBlockToJSON_v15_string(true));
-    //                     AfterSelection.Add(PreviouslySelectedBlocks[index].UID);
-    //                 }
-    //             }
-    //
-    //             if (Before.Count > 0)
-    //             {
-    //                 LevelEditorCentral.validation.BreakLock(
-    //                     LevelEditorCentral.undoRedo.ConvertBeforeAndAfterListToCollection(Before, After, PreviouslySelectedBlocks,
-    //                         BeforeSelection, AfterSelection), "Gizmo6");
-    //             }
-    //
-    //             DestroyAllHolograms();
-    //             MessengerApi.LogSuccess($"[Vertexsnapper] {PreviouslySelectedBlocks.Count} object(s) snapped successfully!");
-    //         }
-    //     }
-    // }
 }

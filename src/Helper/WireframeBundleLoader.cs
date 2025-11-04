@@ -2,7 +2,7 @@
 
 using UnityEngine;
 
-namespace VertexSnapper;
+namespace VertexSnapper.Helper;
 
 public static class WireframeBundleLoader
 {

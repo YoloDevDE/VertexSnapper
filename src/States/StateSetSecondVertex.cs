@@ -1,12 +1,14 @@
 using UnityEngine;
+using VertexSnapper.Components;
+using VertexSnapper.Managers;
 using ZeepSDK.LevelEditor;
 
-namespace VertexSnapper;
+namespace VertexSnapper.States;
 
-public class StateSnapping : IVertexSnapperState<VertexSnapper>
+public class StateSetSecondVertex : IVertexSnapperState<Components.VertexSnapper>
 {
-    private Transform _checkWhateverThing = new GameObject().transform;
-    public VertexSnapper VertexSnapper { get; set; }
+    private Transform _prevSecondVertexTransform = new GameObject().transform;
+    public Components.VertexSnapper VertexSnapper { get; set; }
 
     public void Enter()
     {
@@ -16,10 +18,12 @@ public class StateSnapping : IVertexSnapperState<VertexSnapper>
         LevelEditorApi.BlockMouseInput(this);
         VertexSnapper.CreateAndMoveSecondCursorToClosestVertex();
         VertexSnapper.CloneSelectedBlocks();
+        DistanceIndicator.Show(VertexSnapper.FirstVertex.position, VertexSnapper.SecondVertex.position);
     }
 
     public void Exit()
     {
+        DistanceIndicator.DestroyIndicator();
         KeyInputManager.OnKeyUp[VertexSnapperConfigManager.VertexKeyBind.Value] -= ChangeStateToRoaming;
         KeyInputManager.OnMouseDown[2] -= ChangeStateToAbort;
         KeyInputManager.OnMouseDown[0] -= InvokeSnapProcess;
@@ -32,12 +36,12 @@ public class StateSnapping : IVertexSnapperState<VertexSnapper>
     {
         VertexSnapper.CreateAndMoveSecondCursorToClosestVertex();
         VertexSnapper.UpdateHologramPulse();
-        if (!_checkWhateverThing)
+        if (!_prevSecondVertexTransform)
         {
-            _checkWhateverThing = new GameObject().transform;
+            _prevSecondVertexTransform = new GameObject().transform;
         }
 
-        if (_checkWhateverThing?.position == VertexSnapper.SecondVertex.position)
+        if (_prevSecondVertexTransform?.position == VertexSnapper.SecondVertex.position)
         {
             return;
         }
@@ -45,8 +49,9 @@ public class StateSnapping : IVertexSnapperState<VertexSnapper>
 
         VertexSnapper.SafeDestroy(VertexSnapper.VertexsnapperHologram);
         VertexSnapper.CloneSelectedBlocks();
-        _checkWhateverThing!.position = VertexSnapper.SecondVertex.position;
+        _prevSecondVertexTransform!.position = VertexSnapper.SecondVertex.position;
         VertexSnapper.MoveHologramToVertex(VertexSnapper.VertexsnapperHologram);
+        DistanceIndicator.Show(VertexSnapper.FirstVertex.position, VertexSnapper.SecondVertex.position);
     }
 
     private void InvokeSnapProcess()
@@ -64,6 +69,6 @@ public class StateSnapping : IVertexSnapperState<VertexSnapper>
 
     private void ChangeStateToRoaming()
     {
-        VertexSnapper.ChangeState(new SnapperStateRoaming());
+        VertexSnapper.ChangeState(new StateRoaming());
     }
 }

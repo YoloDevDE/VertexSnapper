@@ -2,6 +2,7 @@
 using BepInEx.Logging;
 using HarmonyLib;
 using UnityEngine;
+using VertexSnapper.Managers;
 using ZeepSDK.LevelEditor;
 
 namespace VertexSnapper;
@@ -43,13 +44,13 @@ public class Plugin : BaseUnityPlugin
 
     private void HandleExitedLevelEditor()
     {
-        VertexSnapper vertexSnapper = FindObjectOfType<VertexSnapper>();
+        Components.VertexSnapper vertexSnapper = FindObjectOfType<Components.VertexSnapper>();
         Destroy(vertexSnapper);
     }
 
     private void HandleEnteredLevelEditor()
     {
         GameObject vertexSnapper = new GameObject("VertexSnapper");
-        vertexSnapper.AddComponent<VertexSnapper>();
+        vertexSnapper.AddComponent<Components.VertexSnapper>();
     }
 }

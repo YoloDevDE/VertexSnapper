@@ -1,11 +1,12 @@
+using VertexSnapper.Managers;
 using ZeepSDK.LevelEditor;
 using ZeepSDK.Messaging;
 
-namespace VertexSnapper;
+namespace VertexSnapper.States;
 
-public class StateSelectOriginVertex : IVertexSnapperState<VertexSnapper>
+public class StateSetFirstVertex : IVertexSnapperState<Components.VertexSnapper>
 {
-    public VertexSnapper VertexSnapper { get; set; }
+    public Components.VertexSnapper VertexSnapper { get; set; }
 
 
     public void Enter()
@@ -30,13 +31,14 @@ public class StateSelectOriginVertex : IVertexSnapperState<VertexSnapper>
     public void Update()
     {
         VertexSnapper.CreateAndMoveFirstCursorToClosestVertex();
+        
     }
 
     private void TryChangeStateToRoaming()
     {
         if (OriginIsValid())
         {
-            VertexSnapper.ChangeState(new SnapperStateRoaming());
+            VertexSnapper.ChangeState(new StateRoaming());
         }
     }
 

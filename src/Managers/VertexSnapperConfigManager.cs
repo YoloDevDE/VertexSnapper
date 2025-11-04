@@ -3,7 +3,7 @@ using BepInEx.Configuration;
 using UnityEngine;
 using ZeepSDK.Messaging;
 
-namespace VertexSnapper;
+namespace VertexSnapper.Managers;
 
 public abstract class VertexSnapperConfigManager : IDisposable
 {

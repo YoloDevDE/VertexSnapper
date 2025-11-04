@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace VertexSnapper;
+namespace VertexSnapper.Managers;
 
 public class KeyInputManager : MonoBehaviour
 {
