@@ -29,7 +29,7 @@ public class KeyInputManager : MonoBehaviour
 
     private void Awake()
     {
-        if (_instance != null && _instance != this)
+        if (_instance && _instance != this)
         {
             Destroy(gameObject);
             return;
@@ -79,7 +79,11 @@ public class KeyInputManager : MonoBehaviour
             }
         }
 
-        if (RegisteredMouseButtons.Count != 0)
+        if (RegisteredMouseButtons.Count == 0)
+        {
+            return;
+        }
+
         {
             List<int> mouseSnapshot = new List<int>(RegisteredMouseButtons);
             foreach (int btn in mouseSnapshot)

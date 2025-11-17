@@ -44,13 +44,13 @@ public class Plugin : BaseUnityPlugin
 
     private void HandleExitedLevelEditor()
     {
-        Components.VertexSnapper vertexSnapper = FindObjectOfType<Components.VertexSnapper>();
+        VertexSnapper vertexSnapper = FindObjectOfType<VertexSnapper>();
         Destroy(vertexSnapper);
     }
 
     private void HandleEnteredLevelEditor()
     {
         GameObject vertexSnapper = new GameObject("VertexSnapper");
-        vertexSnapper.AddComponent<Components.VertexSnapper>();
+        vertexSnapper.AddComponent<VertexSnapper>();
     }
 }

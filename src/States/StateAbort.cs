@@ -1,8 +1,8 @@
 ﻿namespace VertexSnapper.States;
 
-public class StateAbort : IVertexSnapperState<Components.VertexSnapper>
+public class StateAbort : IVertexSnapperState<VertexSnapper>
 {
-    public Components.VertexSnapper VertexSnapper { get; set; }
+    public VertexSnapper VertexSnapper { get; set; }
 
 
     public void Enter()

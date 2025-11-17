@@ -1,25 +1,25 @@
 ManifestFileVersion: 0
-UnityVersion: 6000.2.10f1
-CRC: 3104865331
-Hashes:
-  AssetFileHash:
-    serializedVersion: 2
-    Hash: 5ec4ccd7f51ae703ddbe95732c145e1d
-  TypeTreeHash:
-    serializedVersion: 2
-    Hash: 4946d9aa1a4c0871d75943c6e3d5e7c6
-  IncrementalBuildHash:
-    serializedVersion: 2
-    Hash: 7eb7026d287900b4261ea8347edcd925
-HashAppended: 0
-ClassTypes:
-- Class: 21
-  Script: {instanceID: 0}
-- Class: 28
-  Script: {instanceID: 0}
-- Class: 48
-  Script: {instanceID: 0}
-SerializeReferenceClassIdentifiers: []
-Assets:
-- Assets/AssetBundles/Wireframe.mat
-Dependencies: []
+        UnityVersion: 6000.2.10f1
+        CRC: 3104865331
+        Hashes:
+        AssetFileHash:
+        serializedVersion: 2
+        Hash: 5ec4ccd7f51ae703ddbe95732c145e1d
+        TypeTreeHash:
+        serializedVersion: 2
+        Hash: 4946d9aa1a4c0871d75943c6e3d5e7c6
+        IncrementalBuildHash:
+        serializedVersion: 2
+        Hash: 7eb7026d287900b4261ea8347edcd925
+        HashAppended: 0
+        ClassTypes:
+        - Class: 21
+        Script: {instanceID: 0}
+        - Class: 28
+        Script: {instanceID: 0}
+        - Class: 48
+        Script: {instanceID: 0}
+        SerializeReferenceClassIdentifiers: []
+        Assets:
+        - Assets/AssetBundles/Wireframe.mat
+        Dependencies: []

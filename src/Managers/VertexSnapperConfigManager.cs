@@ -8,8 +8,9 @@ namespace VertexSnapper.Managers;
 public abstract class VertexSnapperConfigManager : IDisposable
 {
     private static ConfigFile _config;
-    public static ConfigEntry<double> VertexSnapperSphereRadius { get; private set; }
+    private static readonly KeyCode DefaultVertexKeyBind = KeyCode.T;
     public static ConfigEntry<KeyCode> VertexKeyBind { get; private set; }
+
 
     public void Dispose()
     {
@@ -20,19 +21,13 @@ public abstract class VertexSnapperConfigManager : IDisposable
     public static void Init(ConfigFile config)
     {
         _config = config;
-        VertexSnapperSphereRadius =
-            _config.Bind(
-                "General",
-                "Vertex Sphere Radius",
-                0.5
-            );
 
         VertexKeyBind =
             _config.Bind(
                 "Keybinds",
                 "VertexSnapper Activation KeyBind",
-                KeyCode.LeftAlt,
-                "Holding down this key enables the vertex snapper (DO NOT USE 'CTRL'"
+                DefaultVertexKeyBind,
+                "Holding down this key enables the vertex snapper"
             );
         _config.SettingChanged += HandleSettingsChanged;
     }
@@ -42,15 +37,15 @@ public abstract class VertexSnapperConfigManager : IDisposable
         ResetKeyBindingIfCtrl();
     }
 
-    private static void ResetKeyBindingIfCtrl()
+    public static void ResetKeyBindingIfCtrl()
     {
         if (VertexKeyBind.Value is not (KeyCode.LeftControl or KeyCode.RightControl))
         {
             return;
         }
 
-        MessengerApi.LogError("[Vertexsnapper] <b>[CTRL]-key</b> binding detected.<br>Resetting to default (<b>[LEFT_ALT]-key</b>)", 10f);
-        VertexKeyBind.Value = KeyCode.LeftAlt;
+        MessengerApi.LogError($"[Vertexsnapper] <b>[CTRL]-key</b> binding detected.<br>Resetting to default (<b>[{DefaultVertexKeyBind}]-key</b>)", 10f);
+        VertexKeyBind.Value = DefaultVertexKeyBind;
         _config.Save();
     }
 
