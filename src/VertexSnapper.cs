@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using BepInEx.Logging;
+using FMODSyntax;
 using JetBrains.Annotations;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -11,6 +12,7 @@ using VertexSnapper.Helper;
 using VertexSnapper.Managers;
 using VertexSnapper.States;
 using ZeepSDK.LevelEditor;
+using ZeepSDK.Messaging;
 
 namespace VertexSnapper;
 
@@ -55,6 +57,10 @@ public class VertexSnapper : MonoBehaviour
     public IVertexSnapperState<VertexSnapper> CurrentState { get; set; }
     public GameObject Hologram { get; set; }
 
+    public Vector3 CubeSize { get; set; }
+    public float CubeScaleFactor { get; set; } = 0.5f;
+    public bool IsInEditingMode { get; set; }
+
     // 5) Unity lifecycle
     private void Awake()
     {
@@ -72,6 +78,21 @@ public class VertexSnapper : MonoBehaviour
     private void Update()
     {
         _pulseTime += Time.deltaTime;
+        if (IsInEditingMode)
+        {
+            if (LevelEditorCentral.tool.currentTool != 0)
+            {
+                IsInEditingMode = LevelEditorCentral.tool.currentTool == 0;
+                BlockSelectionCache.Clear();
+                ChangeState(new StateAbort());
+            }
+        }
+        else
+        {
+            IsInEditingMode = LevelEditorCentral.tool.currentTool == 0;
+            return;
+        } 
+
 
         if (_isStateChanging)
         {
@@ -79,6 +100,8 @@ public class VertexSnapper : MonoBehaviour
         }
 
         AnimateHologramPulse();
+
+
         CurrentState?.Update();
     }
 
@@ -87,11 +110,6 @@ public class VertexSnapper : MonoBehaviour
         CurrentState?.Exit();
         CurrentState = null;
     }
-
-    // 6) Public API
-    public List<MeshFilter> GetAllMeshFilters(RaycastHit hit) => GetAllMeshFilters(hit.transform.gameObject.GetComponent<BlockProperties>());
-
-    public List<MeshFilter> GetAllMeshFilters(BlockProperties block) => block.GetComponentsInChildren<MeshFilter>().ToList();
 
 
     public void SnapCursorToVertex(Transform targetVertex, List<BlockProperties> filter)
@@ -116,12 +134,16 @@ public class VertexSnapper : MonoBehaviour
     {
         BlockSelectionCache.Clear();
         BlockSelectionCache.CopyFrom(SelectedBlocks);
-        // LevelEditorApi.ClearSelection();
         LevelEditorCentral.selection.list.Clear();
     }
 
     public void ReAddPreviousBlockSelection()
     {
+        if (!IsInEditingMode)
+        {
+            return;
+        }
+
         LevelEditorApi.ClearSelection();
         foreach (BlockProperties block in BlockSelectionCache)
         {
@@ -280,8 +302,7 @@ public class VertexSnapper : MonoBehaviour
         {
             return;
         }
-
-
+        
         foreach ((Transform savedTransform, Vector3 offset) in HologramOffsets)
         {
             savedTransform.position = cursorPos + offset;
@@ -292,6 +313,7 @@ public class VertexSnapper : MonoBehaviour
     {
         if (!FirstCursor || !SecondCursor)
         {
+            AudioEvents.Blarghl.Play();
             return false;
         }
 
@@ -337,7 +359,9 @@ public class VertexSnapper : MonoBehaviour
                 "Gizmo6");
         }
 
-
+        MessengerApi.LogSuccess("[Vertexsnapper] Snap successful!", 0.8f);
+        AudioEvents.BlockPlace.Play();
+        AudioEvents.ChangeWheelsGate.Play();
         return true;
     }
 

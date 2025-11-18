@@ -1,4 +1,7 @@
-﻿namespace VertexSnapper.States;
+﻿using FMODSyntax;
+using ZeepSDK.Messaging;
+
+namespace VertexSnapper.States;
 
 public class StateAbort : IVertexSnapperState<VertexSnapper>
 {
@@ -7,16 +10,18 @@ public class StateAbort : IVertexSnapperState<VertexSnapper>
 
     public void Enter()
     {
-        VertexSnapper.RestoreDefaultState();
-        ChangeStateToIdle();
+        MessengerApi.Log("[Vertexsnapper] Im not gonna snap <sprite=\"Zeepkist\" name=\"YannicSmile\">", 0.8f);
+        AudioEvents.MenuClick.Play();
+        ChangeStateToCleanUp();
     }
 
     public void Exit() { }
 
+
     public void Update() { }
 
-    private void ChangeStateToIdle()
+    private void ChangeStateToCleanUp()
     {
-        VertexSnapper.ChangeState(new StateIdle());
+        VertexSnapper.ChangeState(new StateCleanUp());
     }
 }

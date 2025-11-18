@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Linq;
+using FMODSyntax;
 using UnityEngine;
 using VertexSnapper.Components;
 using VertexSnapper.Helper;
@@ -26,37 +28,39 @@ public class StateSetSecondCursor : IVertexSnapperState<VertexSnapper>
         CleanUpResources();
 
         KeyInputManager.OnKeyUp[VertexSnapperConfigManager.VertexKeyBind.Value] -= ChangeStateToRoaming;
-        KeyInputManager.OnMouseDown[2] -= ChangeStateToAbort;
         KeyInputManager.OnMouseDown[0] -= InvokeSnapProcess;
+
+        KeyInputManager.OnMouseDown[2] -= ChangeStateToAbort;
         LevelEditorApi.UnblockMouseInput(this);
     }
 
     public void Update()
     {
-        if (!VertexSnapper.Hologram)
-        {
-            VertexSnapper.Hologram = VertexSnapper.CreateHologram(
-                VertexSnapper.BlockSelectionCache.Select(b => b.gameObject),
-                WireframeBundleLoader.WireframeMaterial,
-                Color.yellow);
-            VertexSnapper.Hologram.layer = LayerMask.NameToLayer("Ignore Raycast");
-            VertexSnapper.CreateAnchorPoint(
-                VertexSnapper.Hologram,
-                VertexSnapper.HologramOffsets,
-                VertexSnapper.FirstCursor.transform);
-        }
-
-        if (RaycastUtils.IsSphereCastOnBlockSuccessful(VertexSnapper.MainCamera, out RaycastHit hit))
+        List<BlockProperties> disallowedBlocks = VertexSnapperConfigManager.SelfSnapEnabled.Value ? null : VertexSnapper.BlockSelectionCache;
+        if (RaycastUtils.IsSphereCastOnBlockSuccessful(VertexSnapper.MainCamera, out RaycastHit hit, null, disallowedBlocks))
         {
             // Versuche, den Block unter dem Hit zu bekommen
-            BlockProperties block;
-            RaycastUtils.TryGetBlocksFromHit(hit, out block);
+            RaycastUtils.TryGetBlocksFromHit(hit, out BlockProperties block);
 
             // Wenn sich der Zielblock geändert hat: komplett aufräumen
             if (block != _currentTargetBlock)
             {
                 CleanUpResources();
                 _currentTargetBlock = block;
+                AudioEvents.MenuHoverDisabled.Play();
+            }
+
+            if (!VertexSnapper.Hologram && VertexSnapperConfigManager.MovingHologramEnabled.Value)
+            {
+                VertexSnapper.Hologram = VertexSnapper.CreateHologram(
+                    VertexSnapper.BlockSelectionCache.Select(b => b.gameObject),
+                    WireframeBundleLoader.WireframeMaterial,
+                    ColorUtils.FromHex(VertexSnapperConfigManager.MovingHologramColorHex.Value));
+                VertexSnapper.Hologram.layer = LayerMask.NameToLayer("Ignore Raycast");
+                VertexSnapper.CreateAnchorPoint(
+                    VertexSnapper.Hologram,
+                    VertexSnapper.HologramOffsets,
+                    VertexSnapper.FirstCursor.transform);
             }
 
             // SecondCursor + Highlight für aktuellen Block anlegen
@@ -67,19 +71,32 @@ public class StateSetSecondCursor : IVertexSnapperState<VertexSnapper>
                     MaterialFactory.CreateUnlitMaterial(Color.magenta),
                     VertexSnapper.gameObject);
 
-                if (block)
+                if (block && VertexSnapperConfigManager.TargetHologramEnabled.Value)
                 {
                     VertexSnapper.CacheOriginalMaterials([block], VertexSnapper.TargetBlockMaterials);
-                    VertexSnapper.ApplyWireframeMaterial([block], Color.gray);
+                    VertexSnapper.ApplyWireframeMaterial(
+                        [block],
+                        ColorUtils.FromHex(VertexSnapperConfigManager.TargetHologramColorHex.Value));
                 }
             }
 
-            VertexSnapper.SecondCursor.transform.position = VertexSnapper.FindClosestVertexToHit(hit);
-            DistanceIndicator.Show(
-                VertexSnapper.FirstCursor.transform.position,
-                VertexSnapper.SecondCursor.transform.position);
+            Vector3 closestVertexPosition = VertexSnapper.FindClosestVertexToHit(hit);
+            if (VertexSnapper.SecondCursor.transform.position != closestVertexPosition)
+            {
+                AudioEvents.MenuHover1.Play();
+                VertexSnapper.SecondCursor.transform.position = closestVertexPosition;
+                if (VertexSnapperConfigManager.DistanceIndicatorEnabled.Value)
+                {
+                    DistanceIndicator.Show(
+                        VertexSnapper.FirstCursor.transform.position,
+                        VertexSnapper.SecondCursor.transform.position);
+                }
 
-            VertexSnapper.MoveHologramToCursor(VertexSnapper.SecondCursor.transform.position);
+                if (VertexSnapperConfigManager.TargetHologramEnabled.Value)
+                {
+                    VertexSnapper.MoveHologramToCursor(closestVertexPosition);
+                }
+            }
         }
         else
         {
@@ -101,8 +118,13 @@ public class StateSetSecondCursor : IVertexSnapperState<VertexSnapper>
     {
         if (VertexSnapper.PerformSnap())
         {
-            ChangeStateToAbort();
+            ChangeStateToCleanUp();
         }
+    }
+
+    private void ChangeStateToCleanUp()
+    {
+        VertexSnapper.ChangeState(new StateCleanUp());
     }
 
     private void ChangeStateToAbort()

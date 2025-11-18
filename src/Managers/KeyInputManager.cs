@@ -79,6 +79,23 @@ public class KeyInputManager : MonoBehaviour
             }
         }
 
+        // ---- Mouse scroll handling (works even with no registered buttons) ----
+        float scrollY = Input.mouseScrollDelta.y;
+        if (Mathf.Abs(scrollY) > 0f)
+        {
+            AnyScroll?.Invoke(scrollY);
+
+            if (scrollY > 0f)
+            {
+                ScrollUp?.Invoke(scrollY);
+            }
+            else
+            {
+                ScrollDown?.Invoke(scrollY);
+            }
+        }
+        // ----------------------------------------------------------------------
+
         if (RegisteredMouseButtons.Count == 0)
         {
             return;
@@ -120,6 +137,11 @@ public class KeyInputManager : MonoBehaviour
             }
         }
     }
+
+    // Scroll events
+    public static event Action<float> ScrollUp; // positive delta.y
+    public static event Action<float> ScrollDown; // negative delta.y
+    public static event Action<float> AnyScroll; // any non‑zero delta.y
 
     // Optional: global mouse notifications
     public static event Action<int> AnyMouseDown;

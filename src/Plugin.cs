@@ -2,8 +2,11 @@
 using BepInEx.Logging;
 using HarmonyLib;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using VertexSnapper.Managers;
 using ZeepSDK.LevelEditor;
+
+// using <YourNamespace>; // where PlayerManager lives
 
 namespace VertexSnapper;
 
@@ -11,8 +14,11 @@ namespace VertexSnapper;
 [BepInDependency("ZeepSDK")]
 public class Plugin : BaseUnityPlugin
 {
+    private bool _configInitialized;
     private Harmony _harmony;
+
     private Plugin() { }
+
     public static Plugin Instance { get; private set; }
     public new ManualLogSource Logger => base.Logger;
 
@@ -23,24 +29,46 @@ public class Plugin : BaseUnityPlugin
         _harmony.PatchAll();
 
         Logger.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
+
+        // Subscribe to Unity's sceneLoaded event
+        SceneManager.sceneLoaded += HandleSceneLoaded;
     }
 
     private void Start()
     {
-        VertexSnapperConfigManager.Init(Config);
+        // Config is now initialized in HandleSceneLoaded when 3D_MainMenu loads
         LevelEditorApi.EnteredLevelEditor += HandleEnteredLevelEditor;
         LevelEditorApi.ExitedLevelEditor += HandleExitedLevelEditor;
     }
-
 
     private void OnDestroy()
     {
         LevelEditorApi.EnteredLevelEditor -= HandleEnteredLevelEditor;
         LevelEditorApi.ExitedLevelEditor -= HandleExitedLevelEditor;
+
+        SceneManager.sceneLoaded -= HandleSceneLoaded;
+
         _harmony?.UnpatchSelf();
         _harmony = null;
     }
 
+    private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        if (_configInitialized)
+        {
+            return;
+        }
+
+        if (scene.name != "3D_MainMenu")
+        {
+            return;
+        }
+
+        VertexSnapperConfigManager.Init(Config);
+        _configInitialized = true;
+
+        Logger.LogInfo("[VertexSnapper] Config initialized on scene: 3D_MainMenu");
+    }
 
     private void HandleExitedLevelEditor()
     {

@@ -1,3 +1,4 @@
+using FMODSyntax;
 using UnityEngine;
 using VertexSnapper.Managers;
 
@@ -22,11 +23,28 @@ public class StateIdle : IVertexSnapperState<VertexSnapper>
 
     private void ChangeStateToSelectOriginVertex()
     {
-        if (VertexSnapper.LevelEditorCentral.selection.list.Count <= 0 || VertexSnapper.LevelEditorCentral.validation.amountOfBlocks < 2)
+        // Respect the config toggle
+        if (!VertexSnapperConfigManager.IsEnabled)
         {
             return;
         }
 
+        if (!VertexSnapper.IsInEditingMode)
+        {
+            return;
+        }
+
+        if (VertexSnapper.LevelEditorCentral.selection.list.Count <= 0)
+        {
+            return;
+        }
+
+        if (VertexSnapper.LevelEditorCentral.validation.amountOfBlocks < 2)
+        {
+            return;
+        }
+
+        AudioEvents.MenuClick.Play();
         VertexSnapper.ChangeState(new StateSetFirstCursor());
     }
 }

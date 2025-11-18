@@ -23,7 +23,6 @@
         <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all"/>
         <PackageReference Include="BepInEx.Core" Version="5.*"/>
         <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*"/>
-        <PackageReference Include="System.Reactive" Version="6.1.0"/>
         <PackageReference Include="Zeepkist.GameLibs" Version="17.15.1867"/>
         <PackageReference Include="ZeepSDK" Version="1.45.10"/>
     </ItemGroup>

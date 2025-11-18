@@ -9,12 +9,13 @@ public abstract class CursorFactory
     public static GameObject CreateCursor(
         string cursorName,
         [NotNull] Material material,
-        GameObject parent = null)
+        GameObject parent = null,
+        float scale = 0.5f)
     {
         GameObject go = GameObject.CreatePrimitive(PrimitiveType.Cube);
         Renderer renderer = go.GetComponent<Renderer>();
 
-        go.transform.localScale = Vector3.one * 0.5f;
+        go.transform.localScale = Vector3.one * scale;
 
         renderer.shadowCastingMode = ShadowCastingMode.Off;
         renderer.receiveShadows = false;
