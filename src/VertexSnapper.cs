@@ -37,6 +37,7 @@ public class VertexSnapper : MonoBehaviour
 
     // 3) Instance fields
     public Dictionary<Renderer, Material[]> BlockSelectionMaterials { get; } = new Dictionary<Renderer, Material[]>();
+    public Dictionary<Renderer, Material[]> OriginalBlockMaterials { get; } = new Dictionary<Renderer, Material[]>();
 
     public Dictionary<Renderer, Material[]> TargetBlockMaterials { get; } = new Dictionary<Renderer, Material[]>();
 
@@ -80,18 +81,19 @@ public class VertexSnapper : MonoBehaviour
         _pulseTime += Time.deltaTime;
         if (IsInEditingMode)
         {
-            if (LevelEditorCentral.tool.currentTool != 0)
+            if (LevelEditorCentral.tool.currentTool != 0 && CurrentState is not StateIdle)
             {
                 IsInEditingMode = LevelEditorCentral.tool.currentTool == 0;
                 BlockSelectionCache.Clear();
                 ChangeState(new StateAbort());
+                RestoreOriginalMaterials(OriginalBlockMaterials);
             }
         }
         else
         {
             IsInEditingMode = LevelEditorCentral.tool.currentTool == 0;
             return;
-        } 
+        }
 
 
         if (_isStateChanging)
@@ -134,8 +136,15 @@ public class VertexSnapper : MonoBehaviour
     {
         BlockSelectionCache.Clear();
         BlockSelectionCache.CopyFrom(SelectedBlocks);
-        LevelEditorCentral.selection.list.Clear();
+        // LevelEditorCentral.selection.list.Clear();
+        CacheOriginalMaterials(BlockSelectionCache, BlockSelectionMaterials);
+        LevelEditorApi.ClearSelection();
+        int validHistoryPosition = Math.Max(0, Math.Min(LevelEditorCentral.undoRedo.currentHistoryPosition - 1, LevelEditorCentral.undoRedo.historyList.Count - 1));
+        LevelEditorCentral.undoRedo.historyList.RemoveAt(validHistoryPosition);
+        LevelEditorCentral.undoRedo.currentHistoryPosition = validHistoryPosition;
+        CacheOriginalMaterials(BlockSelectionCache, OriginalBlockMaterials);
     }
+
 
     public void ReAddPreviousBlockSelection()
     {
@@ -302,7 +311,7 @@ public class VertexSnapper : MonoBehaviour
         {
             return;
         }
-        
+
         foreach ((Transform savedTransform, Vector3 offset) in HologramOffsets)
         {
             savedTransform.position = cursorPos + offset;

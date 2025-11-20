@@ -29,24 +29,20 @@ public class Plugin : BaseUnityPlugin
         _harmony.PatchAll();
 
         Logger.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
-
-        // Subscribe to Unity's sceneLoaded event
-        SceneManager.sceneLoaded += HandleSceneLoaded;
     }
 
     private void Start()
     {
-        // Config is now initialized in HandleSceneLoaded when 3D_MainMenu loads
+        SceneManager.sceneLoaded += HandleSceneLoaded;
         LevelEditorApi.EnteredLevelEditor += HandleEnteredLevelEditor;
         LevelEditorApi.ExitedLevelEditor += HandleExitedLevelEditor;
     }
 
     private void OnDestroy()
     {
+        SceneManager.sceneLoaded -= HandleSceneLoaded;
         LevelEditorApi.EnteredLevelEditor -= HandleEnteredLevelEditor;
         LevelEditorApi.ExitedLevelEditor -= HandleExitedLevelEditor;
-
-        SceneManager.sceneLoaded -= HandleSceneLoaded;
 
         _harmony?.UnpatchSelf();
         _harmony = null;

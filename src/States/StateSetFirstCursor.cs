@@ -23,7 +23,7 @@ public class StateSetFirstCursor : IVertexSnapperState<VertexSnapper>
         VertexSnapper.CacheAndRemoveBlockSelection();
         if (VertexSnapperConfigManager.OriginHologramEnabled.Value)
         {
-            VertexSnapper.CacheOriginalMaterials(VertexSnapper.BlockSelectionCache, VertexSnapper.BlockSelectionMaterials);
+            // VertexSnapper.CacheOriginalMaterials(VertexSnapper.BlockSelectionCache, VertexSnapper.BlockSelectionMaterials);
             VertexSnapper.ApplyWireframeMaterial(
                 VertexSnapper.BlockSelectionCache,
                 ColorUtils.FromHex(VertexSnapperConfigManager.OriginHologramColorHex.Value, Color.cyan)
