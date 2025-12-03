@@ -44,6 +44,11 @@ public class StateIdle : IVertexSnapperState<VertexSnapper>
             return;
         }
 
+        if (UiTypingDetector.IsTyping())
+        {
+            return;
+        }
+
         AudioEvents.MenuClick.Play();
         VertexSnapper.ChangeState(new StateSetFirstCursor());
     }

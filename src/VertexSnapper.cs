@@ -103,7 +103,6 @@ public class VertexSnapper : MonoBehaviour
 
         AnimateHologramPulse();
 
-
         CurrentState?.Update();
     }
 
