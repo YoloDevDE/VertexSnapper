@@ -36,7 +36,7 @@ public class StateSetSecondCursor : IVertexSnapperState<VertexSnapper>
 
     public void Update()
     {
-        List<BlockProperties> disallowedBlocks = VertexSnapperConfigManager.SelfSnapEnabled.Value ? null : VertexSnapper.BlockSelectionCache;
+        List<BlockProperties> disallowedBlocks = VertexSnapperConfigManager.IsModifierPressed ? null : VertexSnapper.BlockSelectionCache;
         if (RaycastUtils.IsSphereCastOnBlockSuccessful(VertexSnapper.MainCamera, out RaycastHit hit, null, disallowedBlocks))
         {
             // Versuche, den Block unter dem Hit zu bekommen
