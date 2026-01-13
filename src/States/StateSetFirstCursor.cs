@@ -23,7 +23,6 @@ public class StateSetFirstCursor : IVertexSnapperState<VertexSnapper>
         VertexSnapper.CacheAndRemoveBlockSelection();
         if (VertexSnapperConfigManager.OriginHologramEnabled.Value)
         {
-            // VertexSnapper.CacheOriginalMaterials(VertexSnapper.BlockSelectionCache, VertexSnapper.BlockSelectionMaterials);
             VertexSnapper.ApplyWireframeMaterial(
                 VertexSnapper.BlockSelectionCache,
                 VertexSnapperConfigManager.OriginHologramColor.Value
@@ -36,11 +35,6 @@ public class StateSetFirstCursor : IVertexSnapperState<VertexSnapper>
 
     public void Exit()
     {
-        if (VertexSnapperConfigManager.OriginHologramEnabled.Value)
-        {
-            VertexSnapper.RestoreOriginalMaterials(VertexSnapper.BlockSelectionMaterials);
-        }
-
         // Info: how to abort with middle mouse button (no warning)
         MessengerApi.Log(
             "[Vertexsnapper] You can abort vertex snapping anytime with the <#f00>middle mouse button</color> or <#f00>ESC</color>.",

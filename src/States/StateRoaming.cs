@@ -15,7 +15,14 @@ public class StateRoaming : IVertexSnapperState<VertexSnapper>
         KeyInputManager.OnMouseDown[2] += ChangeStateToAbort;
 
         LevelEditorApi.BlockMouseInput(this);
-        VertexSnapper.FirstCursor.GetComponentInChildren<Renderer>().material = MaterialFactory.CreateUnlitMaterial(new Color(0f, 1f, 0f, 1f));
+        VertexSnapper.FirstCursor.GetComponentInChildren<Renderer>().material = MaterialFactory.CreateUnlitMaterial(new Color().Success());
+        if (VertexSnapperConfigManager.OriginHologramEnabled.Value)
+        {
+            VertexSnapper.ApplyWireframeMaterial(
+                VertexSnapper.BlockSelectionCache,
+                new Color().SuccessSoft()
+            );
+        }
     }
 
     public void Exit()
