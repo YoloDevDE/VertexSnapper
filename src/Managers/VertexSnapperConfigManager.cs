@@ -20,7 +20,6 @@ public abstract class VertexSnapperConfigManager
     public static ConfigEntry<KeyCode> VertexKeyBind { get; private set; }
     public static ConfigEntry<KeyCode> ModifierKeyBind { get; private set; }
     private static ConfigEntry<bool> ModEnabled { get; set; }
-    public static ConfigEntry<bool> SelfSnapEnabled { get; private set; }
     public static ConfigEntry<bool> SoundEnabled { get; private set; }
 
     // Hologram enable toggles
