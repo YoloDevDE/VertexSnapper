@@ -4,7 +4,7 @@
     <PropertyGroup>
         <TargetFramework>net472</TargetFramework>
         <Description>Cool Stuff</Description>
-        <Version>3.17.3</Version>
+        <Version>3.17.4</Version>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <LangVersion>latest</LangVersion>
         <PackageId>VertexSnapper</PackageId>
@@ -23,8 +23,8 @@
         <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all"/>
         <PackageReference Include="BepInEx.Core" Version="5.*"/>
         <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*"/>
-        <PackageReference Include="Zeepkist.GameLibs" Version="17.15.1867"/>
-        <PackageReference Include="ZeepSDK" Version="1.45.10"/>
+        <PackageReference Include="Zeepkist.GameLibs" Version="17.32.1912"/>
+        <PackageReference Include="ZeepSDK" Version="2.1.1"/>
     </ItemGroup>
 
     <ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
