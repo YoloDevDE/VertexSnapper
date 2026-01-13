@@ -9,7 +9,6 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.UIElements;
 using VertexSnapper.Helper;
-using VertexSnapper.Managers;
 using VertexSnapper.States;
 using ZeepSDK.LevelEditor;
 using ZeepSDK.Messaging;
@@ -68,7 +67,6 @@ public class VertexSnapper : MonoBehaviour
         string bundlePath = Path.Combine(Path.GetDirectoryName(Plugin.Instance.Info.Location) ?? ".", "assets", "wireframe");
         WireframeBundleLoader.InitWireframeMaterial(bundlePath);
         LevelEditorCentral = FindObjectOfType<LEV_LevelEditorCentral>();
-        VertexSnapperConfigManager.ResetKeyBindingIfCtrl();
     }
 
     private void Start()
