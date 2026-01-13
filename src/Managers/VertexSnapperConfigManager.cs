@@ -1,24 +1,26 @@
 ﻿using System;
 using BepInEx.Configuration;
 using UnityEngine;
+using VertexSnapper.Helper;
 using ZeepSDK.Settings;
 
 namespace VertexSnapper.Managers;
 
-public abstract class VertexSnapperConfigManager : IDisposable
+public abstract class VertexSnapperConfigManager
 {
     private const KeyCode DefaultVertexKeyBind = KeyCode.T;
 
     // Defaults for hologram colors (using 0-255 scale)
-    private static readonly Color DefaultOriginHologramColor = new Color(0f / 255f, 255f / 255f, 255f / 255f, 255f / 255f); // Cyan
-    private static readonly Color DefaultMovingHologramColor = new Color(255f / 255f, 255f / 255f, 0f / 255f, 255f / 255f); // Yellow
-    private static readonly Color DefaultTargetHologramColor = new Color(0f / 255f, 0f / 255f, 0f / 255f, 255f / 255f); // Black
+    private static readonly Color DefaultOriginHologramColor = new Color().Primary(); // Cyan
+    private static readonly Color DefaultMovingHologramColor = new Color().Warning(); // Yellow
+    private static readonly Color DefaultTargetHologramColor = new Color().Secondary(); // Black
 
     // Default for distance indicator color
-    private static readonly Color DefaultDistanceIndicatorColor = new Color(255f / 255f, 255f / 255f, 0f / 255f, 255f / 255f); // Yellow
+    private static readonly Color DefaultDistanceIndicatorColor = new Color().Warning(); // Yellow
     private static ConfigFile _config;
 
     public static ConfigEntry<KeyCode> VertexKeyBind { get; private set; }
+    public static ConfigEntry<KeyCode> ModifierKeyBind { get; private set; }
     private static ConfigEntry<bool> ModEnabled { get; set; }
     public static ConfigEntry<bool> SelfSnapEnabled { get; private set; }
     public static ConfigEntry<bool> SoundEnabled { get; private set; }
@@ -37,14 +39,9 @@ public abstract class VertexSnapperConfigManager : IDisposable
     public static ConfigEntry<Color> TargetHologramColor { get; private set; }
     public static ConfigEntry<Color> DistanceIndicatorColor { get; private set; }
 
-    // Convenience property so game code only needs a bool
+    // Convenience properties
     public static bool IsEnabled => ModEnabled?.Value ?? true;
-
-    public void Dispose()
-    {
-        ReleaseUnmanagedResources();
-        GC.SuppressFinalize(this);
-    }
+    public static bool IsModifierPressed => Input.GetKey(ModifierKeyBind.Value) || ModifierKeyBind.Value == KeyCode.None;
 
     public static void Init(ConfigFile config)
     {
@@ -52,24 +49,17 @@ public abstract class VertexSnapperConfigManager : IDisposable
 
         ModEnabled =
             _config.Bind(
-                "01 VertexSnapper",
-                "Enabled",
+                "01 General",
+                "Active",
                 true,
                 "Enable or disable the VertexSnapper mod"
             );
 
-        SelfSnapEnabled =
-            _config.Bind(
-                "01 VertexSnapper",
-                "Self Snap",
-                false,
-                "If enabled, the currently selected blocks can be snapped onto themselves"
-            );
 
         SoundEnabled =
             _config.Bind(
-                "01 VertexSnapper",
-                "Cool Sounds Enabled",
+                "01 General",
+                "Cool Sounds",
                 true,
                 "Enable or disable cool sound effects for the VertexSnapper (Uncool if turned off)"
             );
@@ -77,9 +67,17 @@ public abstract class VertexSnapperConfigManager : IDisposable
         VertexKeyBind =
             _config.Bind(
                 "02 Keybinds",
-                "Activation",
+                "Snapper Key",
                 DefaultVertexKeyBind,
-                "Holding down this key enables the vertex snapper"
+                "Holding down this key enables the \"Vertexsnapper\""
+            );
+
+        ModifierKeyBind =
+            _config.Bind(
+                "02 Keybinds",
+                "Modifier Key",
+                KeyCode.LeftShift,
+                "If you wanna snap onto the selection itself, press this key while holding down the snapper key"
             );
 
         // --- Nested-style, ordered sections for holograms ---
@@ -153,24 +151,6 @@ public abstract class VertexSnapperConfigManager : IDisposable
                 "Color for the distance indicator"
             );
 
-        SettingsApi.ModSettingsWindowClosed += HandleSettingsChanged;
     }
 
-    private static void ReleaseUnmanagedResources()
-    {
-        if (_config != null)
-        {
-            SettingsApi.ModSettingsWindowClosed -= HandleSettingsChanged;
-        }
-    }
-
-    private static void HandleSettingsChanged()
-    {
-        // Logic for when settings are closed
-    }
-
-    ~VertexSnapperConfigManager()
-    {
-        ReleaseUnmanagedResources();
-    }
 }
