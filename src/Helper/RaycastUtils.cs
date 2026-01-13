@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace VertexSnapper.Helper;
@@ -14,9 +15,20 @@ public abstract class RaycastUtils
         Ray ray = camera.ScreenPointToRay(Input.mousePosition);
         const float maxDistance = 10000f;
 
-        return (Physics.Raycast(ray, out hit, maxDistance) ||
-                TryDynamicSphereCast(out hit, ray, maxDistance, allowedBlocks, disallowedBlocks))
-               && PassesFilter(hit, allowedBlocks, disallowedBlocks);
+        // Collect all hits along the ray to find the first one that isn't disallowed
+        RaycastHit[] hits = Physics.RaycastAll(ray, maxDistance);
+        Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+
+        foreach (RaycastHit candidate in hits)
+        {
+            if (PassesFilter(candidate, allowedBlocks, disallowedBlocks))
+            {
+                hit = candidate;
+                return true;
+            }
+        }
+
+        return TryDynamicSphereCast(out hit, ray, maxDistance, allowedBlocks, disallowedBlocks);
     }
 
     public static bool TryGetBlocksFromHit(RaycastHit hit, out BlockProperties block)
@@ -37,14 +49,18 @@ public abstract class RaycastUtils
 
         for (float radius = startRadius; radius <= maxRadius; radius += radiusStep)
         {
-            if (!Physics.SphereCast(ray, radius, out hit, maxDistance) ||
-                !PassesFilter(hit, allowedBlocks, disallowedBlocks))
-            {
-                continue;
-            }
+            // Collect all sphere hits and pick the closest valid one
+            RaycastHit[] sphereHits = Physics.SphereCastAll(ray, radius, maxDistance);
+            Array.Sort(sphereHits, (a, b) => a.distance.CompareTo(b.distance));
 
-            // We already know it passed the filter, so just return true
-            return true;
+            foreach (RaycastHit sphereHit in sphereHits)
+            {
+                if (PassesFilter(sphereHit, allowedBlocks, disallowedBlocks))
+                {
+                    hit = sphereHit;
+                    return true;
+                }
+            }
         }
 
         hit = default;
