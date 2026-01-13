@@ -145,29 +145,13 @@ public abstract class VertexSnapperConfigManager : IDisposable
                 DefaultDistanceIndicatorColorHex,
                 "Hex RGB color for the distance indicator (RRGGBB or #RRGGBB)"
             );
-
-        // Initial validation so the config is clean on first load
-        ResetKeyBindingIfCtrl();
         ValidateHologramColors();
 
         SettingsApi.ModSettingsWindowClosed += HandleSettingsChanged;
     }
 
 
-    public static void ResetKeyBindingIfCtrl()
-    {
-        if (VertexKeyBind.Value is not (KeyCode.LeftControl or KeyCode.RightControl))
-        {
-            return;
-        }
-
-        MessengerApi.LogError(
-            $"[Vertexsnapper] <b>[CTRL]-key</b> binding detected.<br>Resetting to default (<b>[{DefaultVertexKeyBind}]-key</b>)",
-            10f);
-
-        VertexKeyBind.Value = DefaultVertexKeyBind;
-        _config.Save();
-    }
+   
 
     /// <summary>
     ///     Ensures all color entries are valid hex RGB. If not, they are reset to defaults.
@@ -234,9 +218,6 @@ public abstract class VertexSnapperConfigManager : IDisposable
 
     private static void HandleSettingsChanged()
     {
-        // Validate keybinding
-        ResetKeyBindingIfCtrl();
-
         // Validate color entries whenever settings change
         ValidateHologramColors();
     }
