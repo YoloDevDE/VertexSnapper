@@ -1,8 +1,6 @@
-﻿using System;
-using BepInEx.Configuration;
+﻿using BepInEx.Configuration;
 using UnityEngine;
 using VertexSnapper.Helper;
-using ZeepSDK.Settings;
 
 namespace VertexSnapper.Managers;
 
@@ -150,7 +148,5 @@ public abstract class VertexSnapperConfigManager
                 DefaultDistanceIndicatorColor,
                 "Color for the distance indicator"
             );
-
     }
-
 }

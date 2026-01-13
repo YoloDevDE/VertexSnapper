@@ -18,7 +18,7 @@ public static class ColorExtenstions
 
     public static Color Secondary(this Color _) => Hex("#6c757d");
 
-    public static Color Success(this Color _) => Hex("#198754");
+    public static Color Success(this Color _) => Hex("#00ff00");
 
     public static Color Danger(this Color _) => Hex("#dc3545");
 
