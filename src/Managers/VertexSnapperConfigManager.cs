@@ -21,6 +21,7 @@ public abstract class VertexSnapperConfigManager : IDisposable
     public static ConfigEntry<KeyCode> VertexKeyBind { get; private set; }
     private static ConfigEntry<bool> ModEnabled { get; set; }
     public static ConfigEntry<bool> SelfSnapEnabled { get; private set; }
+    public static ConfigEntry<bool> SoundEnabled { get; private set; }
 
     // Hologram enable toggles
     public static ConfigEntry<bool> OriginHologramEnabled { get; private set; }
@@ -63,6 +64,14 @@ public abstract class VertexSnapperConfigManager : IDisposable
                 "Self Snap",
                 false,
                 "If enabled, the currently selected blocks can be snapped onto themselves"
+            );
+
+        SoundEnabled =
+            _config.Bind(
+                "01 VertexSnapper",
+                "Cool Sounds Enabled",
+                true,
+                "Enable or disable cool sound effects for the VertexSnapper (Uncool if turned off)"
             );
 
         VertexKeyBind =
