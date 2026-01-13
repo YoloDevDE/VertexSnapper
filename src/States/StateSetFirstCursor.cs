@@ -26,7 +26,7 @@ public class StateSetFirstCursor : IVertexSnapperState<VertexSnapper>
             // VertexSnapper.CacheOriginalMaterials(VertexSnapper.BlockSelectionCache, VertexSnapper.BlockSelectionMaterials);
             VertexSnapper.ApplyWireframeMaterial(
                 VertexSnapper.BlockSelectionCache,
-                ColorUtils.FromHex(VertexSnapperConfigManager.OriginHologramColorHex.Value, Color.cyan)
+                VertexSnapperConfigManager.OriginHologramColor.Value
             );
         }
 

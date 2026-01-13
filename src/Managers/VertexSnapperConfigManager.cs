@@ -1,27 +1,25 @@
 ﻿using System;
-using System.Globalization;
 using BepInEx.Configuration;
 using UnityEngine;
-using ZeepSDK.Messaging;
 using ZeepSDK.Settings;
 
 namespace VertexSnapper.Managers;
 
 public abstract class VertexSnapperConfigManager : IDisposable
 {
-    // Defaults for hologram colors (hex RGB, no alpha)
-    private const string DefaultOriginHologramColorHex = "00FFFF"; // green
-    private const string DefaultMovingHologramColorHex = "FFFF00"; // cyan
-    private const string DefaultTargetHologramColorHex = "000000"; // red
+    private const KeyCode DefaultVertexKeyBind = KeyCode.T;
+
+    // Defaults for hologram colors (using 0-255 scale)
+    private static readonly Color DefaultOriginHologramColor = new Color(0f / 255f, 255f / 255f, 255f / 255f, 255f / 255f); // Cyan
+    private static readonly Color DefaultMovingHologramColor = new Color(255f / 255f, 255f / 255f, 0f / 255f, 255f / 255f); // Yellow
+    private static readonly Color DefaultTargetHologramColor = new Color(0f / 255f, 0f / 255f, 0f / 255f, 255f / 255f); // Black
 
     // Default for distance indicator color
-    private const string DefaultDistanceIndicatorColorHex = "FFFF00"; // white
+    private static readonly Color DefaultDistanceIndicatorColor = new Color(255f / 255f, 255f / 255f, 0f / 255f, 255f / 255f); // Yellow
     private static ConfigFile _config;
 
-    private static readonly KeyCode DefaultVertexKeyBind = KeyCode.T;
-
     public static ConfigEntry<KeyCode> VertexKeyBind { get; private set; }
-    public static ConfigEntry<bool> ModEnabled { get; private set; }
+    private static ConfigEntry<bool> ModEnabled { get; set; }
     public static ConfigEntry<bool> SelfSnapEnabled { get; private set; }
 
     // Hologram enable toggles
@@ -32,11 +30,11 @@ public abstract class VertexSnapperConfigManager : IDisposable
     // Distance indicator toggle
     public static ConfigEntry<bool> DistanceIndicatorEnabled { get; private set; }
 
-    // Hex RGB strings (RRGGBB or #RRGGBB)
-    public static ConfigEntry<string> OriginHologramColorHex { get; private set; }
-    public static ConfigEntry<string> MovingHologramColorHex { get; private set; }
-    public static ConfigEntry<string> TargetHologramColorHex { get; private set; }
-    public static ConfigEntry<string> DistanceIndicatorColorHex { get; private set; }
+    // Color entries
+    public static ConfigEntry<Color> OriginHologramColor { get; private set; }
+    public static ConfigEntry<Color> MovingHologramColor { get; private set; }
+    public static ConfigEntry<Color> TargetHologramColor { get; private set; }
+    public static ConfigEntry<Color> DistanceIndicatorColor { get; private set; }
 
     // Convenience property so game code only needs a bool
     public static bool IsEnabled => ModEnabled?.Value ?? true;
@@ -64,7 +62,7 @@ public abstract class VertexSnapperConfigManager : IDisposable
                 "01 VertexSnapper",
                 "Self Snap",
                 false,
-                "If enabled, the selected blocks can be snapped onto themselves"
+                "If enabled, the currently selected blocks can be snapped onto themselves"
             );
 
         VertexKeyBind =
@@ -86,12 +84,12 @@ public abstract class VertexSnapperConfigManager : IDisposable
                 "If disabled, no wireframe material is applied to the origin hologram"
             );
 
-        OriginHologramColorHex =
+        OriginHologramColor =
             _config.Bind(
                 "03 Holograms and Distance Indicator",
                 "01 Origin Hologram Color",
-                DefaultOriginHologramColorHex,
-                "Hex RGB color for the origin hologram (RRGGBB or #RRGGBB)"
+                DefaultOriginHologramColor,
+                "Color for the origin hologram"
             );
 
         // Moving hologram
@@ -103,12 +101,12 @@ public abstract class VertexSnapperConfigManager : IDisposable
                 "If disabled, no wireframe material is applied to the moving hologram"
             );
 
-        MovingHologramColorHex =
+        MovingHologramColor =
             _config.Bind(
                 "03 Holograms and Distance Indicator",
                 "02 Moving Hologram Color",
-                DefaultMovingHologramColorHex,
-                "Hex RGB color for the moving hologram (RRGGBB or #RRGGBB)"
+                DefaultMovingHologramColor,
+                "Color for the moving hologram"
             );
 
         // Target hologram
@@ -120,12 +118,12 @@ public abstract class VertexSnapperConfigManager : IDisposable
                 "If disabled, no wireframe material is applied to the target hologram"
             );
 
-        TargetHologramColorHex =
+        TargetHologramColor =
             _config.Bind(
                 "03 Holograms and Distance Indicator",
                 "03 Target Hologram Color",
-                DefaultTargetHologramColorHex,
-                "Hex RGB color for the target hologram (RRGGBB or #RRGGBB)"
+                DefaultTargetHologramColor,
+                "Color for the target hologram"
             );
 
         // --- Distance indicator section ---
@@ -138,74 +136,15 @@ public abstract class VertexSnapperConfigManager : IDisposable
                 "If disabled, the distance indicator line and text will not be shown"
             );
 
-        DistanceIndicatorColorHex =
+        DistanceIndicatorColor =
             _config.Bind(
                 "03 Holograms and Distance Indicator",
                 "04 Distance Indicator Color",
-                DefaultDistanceIndicatorColorHex,
-                "Hex RGB color for the distance indicator (RRGGBB or #RRGGBB)"
+                DefaultDistanceIndicatorColor,
+                "Color for the distance indicator"
             );
-        ValidateHologramColors();
 
         SettingsApi.ModSettingsWindowClosed += HandleSettingsChanged;
-    }
-
-
-   
-
-    /// <summary>
-    ///     Ensures all color entries are valid hex RGB. If not, they are reset to defaults.
-    /// </summary>
-    private static void ValidateHologramColors()
-    {
-        ValidateColorEntry(OriginHologramColorHex, DefaultOriginHologramColorHex, "Origin Hologram");
-        ValidateColorEntry(MovingHologramColorHex, DefaultMovingHologramColorHex, "Moving Hologram");
-        ValidateColorEntry(TargetHologramColorHex, DefaultTargetHologramColorHex, "Target Hologram");
-        ValidateColorEntry(DistanceIndicatorColorHex, DefaultDistanceIndicatorColorHex, "Distance Indicator");
-    }
-
-    private static void ValidateColorEntry(ConfigEntry<string> entry, string defaultHex, string displayName)
-    {
-        if (entry == null)
-        {
-            return;
-        }
-
-        string raw = entry.Value ?? string.Empty;
-        string normalized = raw.Trim().ToUpperInvariant();
-
-        if (normalized.StartsWith("#"))
-        {
-            normalized = normalized.Substring(1);
-        }
-
-        bool isValid =
-            normalized.Length == 6 &&
-            int.TryParse(normalized, NumberStyles.HexNumber, null, out _);
-
-        if (isValid)
-        {
-            // Store back normalized (with leading '#') to keep the config clean
-            string formatted = "#" + normalized;
-            if (entry.Value != formatted)
-            {
-                entry.Value = formatted;
-                _config.Save();
-            }
-
-
-            return;
-        }
-
-        // Invalid -> reset to default and log an error
-        string defaultFormatted = "#" + defaultHex;
-        MessengerApi.LogError(
-            $"[Vertexsnapper] Invalid hex color for <b>{displayName}</b>: \"{raw}\".<br>" +
-            $"Expected format: <b>RRGGBB</b> or <b>#RRGGBB</b>. Resetting to <b>{defaultFormatted}</b>.",
-            10f);
-
-        entry.Value = defaultFormatted;
-        _config.Save();
     }
 
     private static void ReleaseUnmanagedResources()
@@ -218,8 +157,7 @@ public abstract class VertexSnapperConfigManager : IDisposable
 
     private static void HandleSettingsChanged()
     {
-        // Validate color entries whenever settings change
-        ValidateHologramColors();
+        // Logic for when settings are closed
     }
 
     ~VertexSnapperConfigManager()

@@ -55,7 +55,7 @@ public class StateSetSecondCursor : IVertexSnapperState<VertexSnapper>
                 VertexSnapper.Hologram = VertexSnapper.CreateHologram(
                     VertexSnapper.BlockSelectionCache.Select(b => b.gameObject),
                     WireframeBundleLoader.WireframeMaterial,
-                    ColorUtils.FromHex(VertexSnapperConfigManager.MovingHologramColorHex.Value));
+                    VertexSnapperConfigManager.MovingHologramColor.Value);
                 VertexSnapper.Hologram.layer = LayerMask.NameToLayer("Ignore Raycast");
                 VertexSnapper.CreateAnchorPoint(
                     VertexSnapper.Hologram,
@@ -76,7 +76,7 @@ public class StateSetSecondCursor : IVertexSnapperState<VertexSnapper>
                     VertexSnapper.CacheOriginalMaterials([block], VertexSnapper.TargetBlockMaterials);
                     VertexSnapper.ApplyWireframeMaterial(
                         [block],
-                        ColorUtils.FromHex(VertexSnapperConfigManager.TargetHologramColorHex.Value));
+                        VertexSnapperConfigManager.TargetHologramColor.Value);
                 }
             }
 
