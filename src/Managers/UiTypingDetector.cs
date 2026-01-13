@@ -9,24 +9,18 @@ public static class UiTypingDetector
 {
     public static bool IsTyping()
     {
-        EventSystem es = EventSystem.current;
-        if (es == null)
+        EventSystem eventSystem = EventSystem.current;
+        if (!eventSystem)
         {
             return false;
         }
 
-        GameObject selected = es.currentSelectedGameObject;
-        if (selected == null)
+        GameObject selected = eventSystem.currentSelectedGameObject;
+        if (!selected)
         {
             return false;
         }
-        
-        if (selected.GetComponentInParent<TMP_InputField>() != null)
-        {
-            return true;
-        }
 
-
-        return selected.GetComponentInParent<InputField>() != null;
+        return selected.GetComponentInParent<TMP_InputField>() ? true : selected.GetComponentInParent<InputField>();
     }
 }
