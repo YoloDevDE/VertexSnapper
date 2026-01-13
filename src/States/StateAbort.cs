@@ -1,4 +1,5 @@
 ﻿using FMODSyntax;
+using VertexSnapper.Helper;
 using ZeepSDK.Messaging;
 
 namespace VertexSnapper.States;
@@ -11,7 +12,7 @@ public class StateAbort : IVertexSnapperState<VertexSnapper>
     public void Enter()
     {
         MessengerApi.Log("[Vertexsnapper] Im not gonna snap <sprite=\"Zeepkist\" name=\"YannicSmile\">", 0.8f);
-        AudioEvents.MenuClick.Play();
+        AudioEvents.MenuClick.PlayIfEnabled();
         ChangeStateToCleanUp();
     }
 

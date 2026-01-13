@@ -1,5 +1,6 @@
 using FMODSyntax;
 using UnityEngine;
+using VertexSnapper.Helper;
 using VertexSnapper.Managers;
 
 namespace VertexSnapper.States;
@@ -49,7 +50,7 @@ public class StateIdle : IVertexSnapperState<VertexSnapper>
             return;
         }
 
-        AudioEvents.MenuClick.Play();
+        AudioEvents.MenuClick.PlayIfEnabled();
         VertexSnapper.ChangeState(new StateSetFirstCursor());
     }
 }

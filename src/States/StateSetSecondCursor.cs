@@ -47,7 +47,7 @@ public class StateSetSecondCursor : IVertexSnapperState<VertexSnapper>
             {
                 CleanUpResources();
                 _currentTargetBlock = block;
-                AudioEvents.MenuHoverDisabled.Play();
+                AudioEvents.MenuHoverDisabled.PlayIfEnabled();
             }
 
             if (!VertexSnapper.Hologram && VertexSnapperConfigManager.MovingHologramEnabled.Value)
@@ -83,7 +83,7 @@ public class StateSetSecondCursor : IVertexSnapperState<VertexSnapper>
             Vector3 closestVertexPosition = VertexSnapper.FindClosestVertexToHit(hit);
             if (VertexSnapper.SecondCursor.transform.position != closestVertexPosition)
             {
-                AudioEvents.MenuHover1.Play();
+                AudioEvents.MenuHover1.PlayIfEnabled();
                 VertexSnapper.SecondCursor.transform.position = closestVertexPosition;
                 if (VertexSnapperConfigManager.DistanceIndicatorEnabled.Value)
                 {

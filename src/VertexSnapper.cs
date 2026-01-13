@@ -319,7 +319,7 @@ public class VertexSnapper : MonoBehaviour
     {
         if (!FirstCursor || !SecondCursor)
         {
-            AudioEvents.Blarghl.Play();
+            AudioEvents.Blarghl.PlayIfEnabled();
             return false;
         }
 
@@ -366,8 +366,8 @@ public class VertexSnapper : MonoBehaviour
         }
 
         MessengerApi.LogSuccess("[Vertexsnapper] Snap successful!", 0.8f);
-        AudioEvents.BlockPlace.Play();
-        AudioEvents.ChangeWheelsGate.Play();
+        AudioEvents.BlockPlace.PlayIfEnabled();
+        AudioEvents.ChangeWheelsGate.PlayIfEnabled();
         return true;
     }
 

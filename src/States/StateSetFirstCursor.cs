@@ -75,7 +75,7 @@ public class StateSetFirstCursor : IVertexSnapperState<VertexSnapper>
                 return;
             }
 
-            AudioEvents.MenuHover1.Play();
+            AudioEvents.MenuHover1.PlayIfEnabled();
             VertexSnapper.FirstCursor.transform.position = closestVertexPosition;
 
             return;
@@ -118,11 +118,11 @@ public class StateSetFirstCursor : IVertexSnapperState<VertexSnapper>
             MessengerApi.LogWarning(
                 $"[Vertexsnapper] No Vertex selected!<br><align=left><indent=15%>To select a vertex, hold down <#f00>[{VertexSnapperConfigManager.VertexKeyBind.Value}]</color> while hovering over the <b>block selection</b>.<br>To confirm, press the <#f00>left mouse button</color>.</align>",
                 10f);
-            AudioEvents.Blarghl.Play();
+            AudioEvents.Blarghl.PlayIfEnabled();
             return;
         }
 
-        AudioEvents.MenuClick.Play();
+        AudioEvents.MenuClick.PlayIfEnabled();
         VertexSnapper.ChangeState(new StateRoaming());
     }
 
