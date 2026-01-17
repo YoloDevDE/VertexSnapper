@@ -1,3 +1,4 @@
+using BepInEx.Configuration;
 using FMODSyntax;
 using UnityEngine;
 using VertexSnapper.Helper;
@@ -13,14 +14,21 @@ public class StateIdle : IVertexSnapperState<VertexSnapper>
     public void Enter()
     {
         KeyInputManager.OnKeyDown[_vertexKey] += ChangeStateToSelectOriginVertex;
+        VertexSnapperConfigManager.Config.SettingChanged += OnSettingChanged;
     }
 
     public void Exit()
     {
         KeyInputManager.OnKeyDown[_vertexKey] -= ChangeStateToSelectOriginVertex;
+        VertexSnapperConfigManager.Config.SettingChanged -= OnSettingChanged;
     }
 
     public void Update() { }
+
+    private void OnSettingChanged(object sender, SettingChangedEventArgs e)
+    {
+        VertexSnapper.ChangeState(new StateCleanUp());
+    }
 
     private void ChangeStateToSelectOriginVertex()
     {
