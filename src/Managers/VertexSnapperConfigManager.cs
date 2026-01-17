@@ -15,7 +15,7 @@ public abstract class VertexSnapperConfigManager
 
     // Default for distance indicator color
     private static readonly Color DefaultDistanceIndicatorColor = new Color().Warning(); // Yellow
-    private static ConfigFile _config;
+    public static ConfigFile Config { get; private set; }
 
     public static ConfigEntry<KeyCode> VertexKeyBind { get; private set; }
     public static ConfigEntry<KeyCode> ModifierKeyBind { get; private set; }
@@ -42,10 +42,10 @@ public abstract class VertexSnapperConfigManager
 
     public static void Init(ConfigFile config)
     {
-        _config = config;
+        Config = config;
 
         ModEnabled =
-            _config.Bind(
+            Config.Bind(
                 "01 General",
                 "Active",
                 true,
@@ -54,7 +54,7 @@ public abstract class VertexSnapperConfigManager
 
 
         SoundEnabled =
-            _config.Bind(
+            Config.Bind(
                 "01 General",
                 "Cool Sounds",
                 true,
@@ -62,7 +62,7 @@ public abstract class VertexSnapperConfigManager
             );
 
         VertexKeyBind =
-            _config.Bind(
+            Config.Bind(
                 "02 Keybinds",
                 "Snapper Key",
                 DefaultVertexKeyBind,
@@ -70,7 +70,7 @@ public abstract class VertexSnapperConfigManager
             );
 
         ModifierKeyBind =
-            _config.Bind(
+            Config.Bind(
                 "02 Keybinds",
                 "Modifier Key",
                 KeyCode.LeftShift,
@@ -81,7 +81,7 @@ public abstract class VertexSnapperConfigManager
 
         // Origin hologram
         OriginHologramEnabled =
-            _config.Bind(
+            Config.Bind(
                 "03 Holograms and Distance Indicator",
                 "01 Origin Hologram Enabled",
                 true,
@@ -89,7 +89,7 @@ public abstract class VertexSnapperConfigManager
             );
 
         OriginHologramColor =
-            _config.Bind(
+            Config.Bind(
                 "03 Holograms and Distance Indicator",
                 "01 Origin Hologram Color",
                 DefaultOriginHologramColor,
@@ -98,7 +98,7 @@ public abstract class VertexSnapperConfigManager
 
         // Moving hologram
         MovingHologramEnabled =
-            _config.Bind(
+            Config.Bind(
                 "03 Holograms and Distance Indicator",
                 "02 Moving Hologram Enabled",
                 true,
@@ -106,7 +106,7 @@ public abstract class VertexSnapperConfigManager
             );
 
         MovingHologramColor =
-            _config.Bind(
+            Config.Bind(
                 "03 Holograms and Distance Indicator",
                 "02 Moving Hologram Color",
                 DefaultMovingHologramColor,
@@ -115,7 +115,7 @@ public abstract class VertexSnapperConfigManager
 
         // Target hologram
         TargetHologramEnabled =
-            _config.Bind(
+            Config.Bind(
                 "03 Holograms and Distance Indicator",
                 "03 Target Hologram Enabled",
                 true,
@@ -123,7 +123,7 @@ public abstract class VertexSnapperConfigManager
             );
 
         TargetHologramColor =
-            _config.Bind(
+            Config.Bind(
                 "03 Holograms and Distance Indicator",
                 "03 Target Hologram Color",
                 DefaultTargetHologramColor,
@@ -133,7 +133,7 @@ public abstract class VertexSnapperConfigManager
         // --- Distance indicator section ---
 
         DistanceIndicatorEnabled =
-            _config.Bind(
+            Config.Bind(
                 "03 Holograms and Distance Indicator",
                 "04 Distance Indicator Enabled",
                 true,
@@ -141,7 +141,7 @@ public abstract class VertexSnapperConfigManager
             );
 
         DistanceIndicatorColor =
-            _config.Bind(
+            Config.Bind(
                 "03 Holograms and Distance Indicator",
                 "04 Distance Indicator Color",
                 DefaultDistanceIndicatorColor,
