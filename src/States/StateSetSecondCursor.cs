@@ -39,6 +39,8 @@ public class StateSetSecondCursor : IVertexSnapperState<VertexSnapper>
         List<BlockProperties> disallowedBlocks = VertexSnapperConfigManager.IsModifierPressed ? null : VertexSnapper.BlockSelectionCache;
         if (RaycastUtils.IsSphereCastOnBlockSuccessful(VertexSnapper.MainCamera, out RaycastHit hit, null, disallowedBlocks))
         {
+            VertexSnapper.LastTargetHit = hit;
+
             // Versuche, den Block unter dem Hit zu bekommen
             RaycastUtils.TryGetBlocksFromHit(hit, out BlockProperties block);
 
@@ -100,6 +102,8 @@ public class StateSetSecondCursor : IVertexSnapperState<VertexSnapper>
         }
         else
         {
+            VertexSnapper.LastTargetHit = null;
+
             // Kein Treffer mehr: alles zurücksetzen
             CleanUpResources();
             _currentTargetBlock = null;
@@ -116,6 +120,11 @@ public class StateSetSecondCursor : IVertexSnapperState<VertexSnapper>
 
     private void InvokeSnapProcess()
     {
+        if (VertexSnapperConfigManager.IsFaceAlignPressed)
+        {
+            VertexSnapper.CaptureTargetFaceFromLastHit();
+        }
+
         if (VertexSnapper.PerformSnap())
         {
             ChangeStateToCleanUp();

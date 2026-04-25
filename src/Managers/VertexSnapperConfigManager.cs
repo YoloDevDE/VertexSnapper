@@ -19,6 +19,9 @@ public abstract class VertexSnapperConfigManager
 
     public static ConfigEntry<KeyCode> VertexKeyBind { get; private set; }
     public static ConfigEntry<KeyCode> ModifierKeyBind { get; private set; }
+
+    public static ConfigEntry<KeyCode> FaceAlignKeyBind { get; private set; }
+
     private static ConfigEntry<bool> ModEnabled { get; set; }
     public static ConfigEntry<bool> SoundEnabled { get; private set; }
 
@@ -39,6 +42,8 @@ public abstract class VertexSnapperConfigManager
     // Convenience properties
     public static bool IsEnabled => ModEnabled?.Value ?? true;
     public static bool IsModifierPressed => Input.GetKey(ModifierKeyBind.Value) || ModifierKeyBind.Value == KeyCode.None;
+
+    public static bool IsFaceAlignPressed => Input.GetKey(FaceAlignKeyBind.Value) || FaceAlignKeyBind.Value == KeyCode.None;
 
     public static void Init(ConfigFile config)
     {
@@ -75,6 +80,14 @@ public abstract class VertexSnapperConfigManager
                 "Modifier Key",
                 KeyCode.LeftShift,
                 "If you wanna snap onto the selection itself, press this key while holding down the snapper key"
+            );
+
+        FaceAlignKeyBind =
+            Config.Bind(
+                "02 Keybinds",
+                "Face Align Key",
+                KeyCode.LeftAlt,
+                "Hold this key during origin/target selection to align faces (rotate around selected origin vertex) before snapping."
             );
 
         // --- Nested-style, ordered sections for holograms ---

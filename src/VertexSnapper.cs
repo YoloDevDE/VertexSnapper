@@ -32,7 +32,10 @@ public class VertexSnapper : MonoBehaviour
     private Camera _camera;
 
     private bool _isStateChanging;
+
+    private FaceFrame? _originFace;
     private float _pulseTime;
+    private FaceFrame? _targetFace;
 
     // 3) Instance fields
     public Dictionary<Renderer, Material[]> BlockSelectionMaterials { get; } = new Dictionary<Renderer, Material[]>();
@@ -60,6 +63,12 @@ public class VertexSnapper : MonoBehaviour
     public Vector3 CubeSize { get; set; }
     public float CubeScaleFactor { get; set; } = 0.5f;
     public bool IsInEditingMode { get; set; }
+
+    // --- Face align (draft) ---
+    public RaycastHit? LastOriginHit { get; set; }
+
+    public RaycastHit? LastTargetHit { get; set; }
+    // --------------------------
 
     // 5) Unity lifecycle
     private void Awake()
@@ -379,7 +388,92 @@ public class VertexSnapper : MonoBehaviour
         SafeDestroy(SecondCursor);
         SafeDestroy(Hologram);
         ReAddPreviousBlockSelection();
+
+        LastOriginHit = null;
+        LastTargetHit = null;
+        _originFace = null;
+        _targetFace = null;
     }
+
+    // --- Face align helpers (draft, no edgecases) ---
+    public void CaptureOriginFaceFromLastHit()
+    {
+        if (LastOriginHit is null)
+        {
+            return;
+        }
+
+        if (TryBuildFaceFrameFromHit(LastOriginHit.Value, out FaceFrame frame))
+        {
+            _originFace = frame;
+        }
+    }
+
+    public void CaptureTargetFaceFromLastHit()
+    {
+        if (LastTargetHit is null)
+        {
+            return;
+        }
+
+        if (TryBuildFaceFrameFromHit(LastTargetHit.Value, out FaceFrame frame))
+        {
+            _targetFace = frame;
+        }
+    }
+
+    private static void ApplyRotationAroundPivot(Transform tr, Vector3 pivot, Quaternion q)
+    {
+        tr.position = pivot + q * (tr.position - pivot);
+        tr.rotation = q * tr.rotation;
+    }
+
+    private static Quaternion ComputeFaceToFaceRotation(FaceFrame origin, FaceFrame target)
+    {
+        // 1) normal -> normal
+        Quaternion qNormal = Quaternion.FromToRotation(origin.Normal, target.Normal);
+
+        // 2) twist: align tangents in target plane
+        Vector3 tOrigin2 = (qNormal * origin.Tangent).normalized;
+        Vector3 tO = Vector3.ProjectOnPlane(tOrigin2, target.Normal).normalized;
+        Vector3 tT = Vector3.ProjectOnPlane(target.Tangent, target.Normal).normalized;
+
+        float angle = Vector3.SignedAngle(tO, tT, target.Normal);
+        Quaternion qTwist = Quaternion.AngleAxis(angle, target.Normal);
+
+        return qTwist * qNormal;
+    }
+
+    private static bool TryBuildFaceFrameFromHit(RaycastHit hit, out FaceFrame frame)
+    {
+        // Assumption for this draft: triangleIndex is valid and mesh data is available.
+        int triIndex = hit.triangleIndex;
+        MeshCollider mc = hit.collider as MeshCollider;
+        Mesh mesh = mc != null ? mc.sharedMesh : null;
+
+        if (mesh == null)
+        {
+            frame = default;
+            return false;
+        }
+
+        int i0 = mesh.triangles[triIndex * 3 + 0];
+        int i1 = mesh.triangles[triIndex * 3 + 1];
+        int i2 = mesh.triangles[triIndex * 3 + 2];
+
+        Transform t = hit.collider.transform;
+
+        Vector3 p0 = t.TransformPoint(mesh.vertices[i0]);
+        Vector3 p1 = t.TransformPoint(mesh.vertices[i1]);
+        Vector3 p2 = t.TransformPoint(mesh.vertices[i2]);
+
+        Vector3 normal = Vector3.Cross(p1 - p0, p2 - p0).normalized;
+        Vector3 tangent = (p1 - p0).normalized;
+
+        frame = new FaceFrame(normal, tangent);
+        return true;
+    }
+    // -----------------------------------------------
 
     public void AnimateHologramPulse()
     {
@@ -474,5 +568,17 @@ public class VertexSnapper : MonoBehaviour
                 r.sharedMaterials = mats;
             }
         }
+    }
+
+    private readonly struct FaceFrame
+    {
+        public FaceFrame(Vector3 normal, Vector3 tangent)
+        {
+            Normal = normal.normalized;
+            Tangent = tangent.normalized;
+        }
+
+        public Vector3 Normal { get; }
+        public Vector3 Tangent { get; }
     }
 }

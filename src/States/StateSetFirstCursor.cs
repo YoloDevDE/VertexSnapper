@@ -53,6 +53,8 @@ public class StateSetFirstCursor : IVertexSnapperState<VertexSnapper>
     {
         if (RaycastUtils.IsSphereCastOnBlockSuccessful(VertexSnapper.MainCamera, out RaycastHit hit, VertexSnapper.BlockSelectionCache))
         {
+            VertexSnapper.LastOriginHit = hit;
+
             if (!VertexSnapper.FirstCursor)
             {
                 VertexSnapper.FirstCursor = CursorFactory.CreateCursor(
@@ -75,6 +77,7 @@ public class StateSetFirstCursor : IVertexSnapperState<VertexSnapper>
             return;
         }
 
+        VertexSnapper.LastOriginHit = null;
         VertexSnapper.SafeDestroy(VertexSnapper.FirstCursor);
     }
 
@@ -114,6 +117,11 @@ public class StateSetFirstCursor : IVertexSnapperState<VertexSnapper>
                 10f);
             AudioEvents.Blarghl.PlayIfEnabled();
             return;
+        }
+
+        if (VertexSnapperConfigManager.IsFaceAlignPressed)
+        {
+            VertexSnapper.CaptureOriginFaceFromLastHit();
         }
 
         AudioEvents.MenuClick.PlayIfEnabled();
