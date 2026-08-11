@@ -167,10 +167,14 @@ public class VertexSnapper : MonoBehaviour
 	}
 
 	/// <summary>
-	///     With a reference on both sides the two faces form full coordinate systems, so a single
-	///     snap settles all three axes and the second one people used to need is gone. Without a
-	///     reference - which happens where the geometry offers none - it falls back to turning the
-	///     normals against each other and leaves the roll alone. A partial alignment beats none.
+	///     With a reference on both sides the two faces form full coordinate systems, so a single snap
+	///     settles all three axes and the second one people used to need is gone. Both references
+	///     point from the middle of their face at the chosen edge, so the side picked on the selection
+	///     ends up on the side picked at the target - no flipping the result to whichever orientation
+	///     happens to be nearer, because now the two are telling apart on purpose.
+	///
+	///     Without a reference it falls back to turning the normals against each other and leaves the
+	///     roll alone. A partial alignment beats none.
 	/// </summary>
 	private Quaternion FaceRotation()
 	{
@@ -180,11 +184,6 @@ public class VertexSnapper : MonoBehaviour
 		if (sourceUp.sqrMagnitude < Mathf.Epsilon || targetUp.sqrMagnitude < Mathf.Epsilon)
 		{
 			return Quaternion.FromToRotation(FirstTarget.Direction, -SecondTarget.Direction);
-		}
-
-		if (Vector3.Dot(sourceUp, targetUp) < 0f)
-		{
-			targetUp = -targetUp;
 		}
 
 		Quaternion source = Quaternion.LookRotation(FirstTarget.Direction, sourceUp);
