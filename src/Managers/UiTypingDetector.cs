@@ -7,20 +7,20 @@ namespace VertexSnapper.Managers;
 
 public static class UiTypingDetector
 {
-    public static bool IsTyping()
-    {
-        EventSystem eventSystem = EventSystem.current;
-        if (!eventSystem)
-        {
-            return false;
-        }
+	public static bool IsTyping()
+	{
+		EventSystem eventSystem = EventSystem.current;
+		if (!eventSystem)
+		{
+			return false;
+		}
 
-        GameObject selected = eventSystem.currentSelectedGameObject;
-        if (!selected)
-        {
-            return false;
-        }
+		GameObject selected = eventSystem.currentSelectedGameObject;
+		if (!selected)
+		{
+			return false;
+		}
 
-        return selected.GetComponentInParent<TMP_InputField>() ? true : selected.GetComponentInParent<InputField>();
-    }
+		return selected.GetComponentInParent<TMP_InputField>() ? true : selected.GetComponentInParent<InputField>();
+	}
 }

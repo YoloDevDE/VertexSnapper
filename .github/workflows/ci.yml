@@ -1,0 +1,12 @@
+name: CI
+
+# The steps live in YoloDevDE/zeepkist-build, so a change to them is one edit rather than six.
+on:
+  push:
+    branches: [ main, 'release/**' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    uses: YoloDevDE/zeepkist-build/.github/workflows/ci.yml@v1

@@ -1,0 +1,27 @@
+# Line endings are normalized to LF in the repository and checked out as CRLF on
+# Windows. Without this, whether a file arrives with CRLF depends on who wrote it and
+# with what, and a stray tool produces a diff touching every line.
+* text=auto
+
+*.cs text diff=csharp
+*.csproj text
+*.props text
+*.targets text
+*.sln text eol=crlf
+*.md text
+*.json text
+*.xml text
+*.yml text
+*.yaml text
+*.editorconfig text
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.sh text eol=lf
+
+*.png binary
+*.jpg binary
+*.dll binary
+*.zip binary
+*.zeeplevel binary

@@ -2,21 +2,25 @@
 
 public class StateCleanUp : IVertexSnapperState<VertexSnapper>
 {
-    public VertexSnapper VertexSnapper { get; set; }
+	public VertexSnapper VertexSnapper { get; set; }
 
 
-    public void Enter()
-    {
-        VertexSnapper.RestoreDefaultState();
-        ChangeStateToIdle();
-    }
+	public void Enter()
+	{
+		// VertexSnapper.RestoreDefaultState();
+		ChangeStateToIdle();
+	}
 
-    public void Exit() { }
+	public void Exit()
+	{
+	}
 
-    public void Update() { }
+	public void Update()
+	{
+	}
 
-    private void ChangeStateToIdle()
-    {
-        VertexSnapper.ChangeState(new StateIdle());
-    }
+	private void ChangeStateToIdle()
+	{
+		VertexSnapper.ChangeState(new StateIdle());
+	}
 }

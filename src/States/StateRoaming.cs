@@ -7,40 +7,43 @@ namespace VertexSnapper.States;
 
 public class StateRoaming : IVertexSnapperState<VertexSnapper>
 {
-    public VertexSnapper VertexSnapper { get; set; }
+	public VertexSnapper VertexSnapper { get; set; }
 
-    public void Enter()
-    {
-        KeyInputManager.OnKeyHeld[VertexSnapperConfigManager.VertexKeyBind.Value] += ChangeStateToSnapping;
-        KeyInputManager.OnMouseDown[2] += ChangeStateToAbort;
+	public void Enter()
+	{
+		KeyInputManager.OnKeyHeld[VertexSnapperConfigManager.VertexKeyBind.Value] += ChangeStateToSnapping;
+		KeyInputManager.OnMouseDown[2] += ChangeStateToAbort;
 
-        LevelEditorApi.BlockMouseInput(this);
-        VertexSnapper.FirstCursor.GetComponentInChildren<Renderer>().material = MaterialFactory.CreateUnlitMaterial(new Color().Success());
-        if (VertexSnapperConfigManager.OriginHologramEnabled.Value)
-        {
-            VertexSnapper.ApplyWireframeMaterial(
-                VertexSnapper.BlockSelectionCache,
-                new Color().SuccessSoft()
-            );
-        }
-    }
+		LevelEditorApi.BlockMouseInput(this);
+		VertexSnapper.FirstCursor.GetComponentInChildren<Renderer>().material =
+			MaterialFactory.CreateUnlitMaterial(new Color().Success());
+		if (VertexSnapperConfigManager.OriginHologramEnabled.Value)
+		{
+			VertexSnapper.ApplyWireframeMaterial(
+				VertexSnapper.BlockSelectionCache,
+				new Color().SuccessSoft()
+			);
+		}
+	}
 
-    public void Exit()
-    {
-        KeyInputManager.OnKeyHeld[VertexSnapperConfigManager.VertexKeyBind.Value] -= ChangeStateToSnapping;
-        KeyInputManager.OnMouseDown[2] -= ChangeStateToAbort;
-        LevelEditorApi.UnblockMouseInput(this);
-    }
+	public void Exit()
+	{
+		KeyInputManager.OnKeyHeld[VertexSnapperConfigManager.VertexKeyBind.Value] -= ChangeStateToSnapping;
+		KeyInputManager.OnMouseDown[2] -= ChangeStateToAbort;
+		LevelEditorApi.UnblockMouseInput(this);
+	}
 
-    public void Update() { }
+	public void Update()
+	{
+	}
 
-    private void ChangeStateToAbort()
-    {
-        VertexSnapper.ChangeState(new StateAbort());
-    }
+	private void ChangeStateToAbort()
+	{
+		VertexSnapper.ChangeState(new StateAbort());
+	}
 
-    private void ChangeStateToSnapping()
-    {
-        VertexSnapper.ChangeState(new StateSetSecondCursor());
-    }
+	private void ChangeStateToSnapping()
+	{
+		VertexSnapper.ChangeState(new StateSetSecondCursor());
+	}
 }

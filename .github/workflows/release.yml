@@ -1,0 +1,20 @@
+name: Release
+
+# A push to `release` publishes. The steps live in YoloDevDE/zeepkist-build; what stays here
+# is what is actually about this mod.
+on:
+  push:
+    branches: [ release ]
+  workflow_dispatch:
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    uses: YoloDevDE/zeepkist-build/.github/workflows/release.yml@v1
+    with:
+      project: VertexSnapper
+      modio-mod-id: ${{ vars.MODIO_MOD_ID }}
+      # Read at runtime beside the DLL, so it has to be in the zip.
+      extra-paths: assets
+    secrets: inherit

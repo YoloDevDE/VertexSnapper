@@ -8,57 +8,84 @@ namespace VertexSnapper.States;
 
 public class StateIdle : IVertexSnapperState<VertexSnapper>
 {
-    private readonly KeyCode _vertexKey = VertexSnapperConfigManager.VertexKeyBind.Value;
-    public VertexSnapper VertexSnapper { get; set; }
+	private readonly KeyCode _gizmoKey = VertexSnapperConfigManager.GizmoKeyBind.Value;
+	private readonly KeyCode _vertexKey = VertexSnapperConfigManager.VertexKeyBind.Value;
+	public VertexSnapper VertexSnapper { get; set; }
 
-    public void Enter()
-    {
-        KeyInputManager.OnKeyDown[_vertexKey] += ChangeStateToSelectOriginVertex;
-        VertexSnapperConfigManager.Config.SettingChanged += OnSettingChanged;
-    }
+	public void Enter()
+	{
+		KeyInputManager.OnKeyDown[_vertexKey] += ChangeStateToSelectOriginVertex;
+		KeyInputManager.OnKeyDown[_gizmoKey] += ChangeStateToSnapGizmoToVertex;
+		VertexSnapperConfigManager.Config.SettingChanged += OnSettingChanged;
+	}
 
-    public void Exit()
-    {
-        KeyInputManager.OnKeyDown[_vertexKey] -= ChangeStateToSelectOriginVertex;
-        VertexSnapperConfigManager.Config.SettingChanged -= OnSettingChanged;
-    }
+	public void Exit()
+	{
+		KeyInputManager.OnKeyDown[_vertexKey] -= ChangeStateToSelectOriginVertex;
+		KeyInputManager.OnKeyDown[_gizmoKey] -= ChangeStateToSnapGizmoToVertex;
+		VertexSnapperConfigManager.Config.SettingChanged -= OnSettingChanged;
+	}
 
-    public void Update() { }
+	public void Update()
+	{
+	}
 
-    private void OnSettingChanged(object sender, SettingChangedEventArgs e)
-    {
-        VertexSnapper.ChangeState(new StateCleanUp());
-    }
+	private void OnSettingChanged(object sender, SettingChangedEventArgs e)
+	{
+		VertexSnapper.ChangeState(new StateCleanUp());
+	}
 
-    private void ChangeStateToSelectOriginVertex()
-    {
-        // Respect the config toggle
-        if (!VertexSnapperConfigManager.IsEnabled)
-        {
-            return;
-        }
+	private void ChangeStateToSelectOriginVertex()
+	{
+		// Respect the config toggle
+		if (!VertexSnapperConfigManager.IsEnabled)
+		{
+			return;
+		}
 
-        if (!VertexSnapper.IsInEditingMode)
-        {
-            return;
-        }
+		if (!VertexSnapper.IsInEditingMode)
+		{
+			return;
+		}
 
-        if (VertexSnapper.LevelEditorCentral.selection.list.Count <= 0)
-        {
-            return;
-        }
+		if (VertexSnapper.LevelEditorCentral.selection.list.Count <= 0)
+		{
+			return;
+		}
 
-        if (VertexSnapper.LevelEditorCentral.validation.amountOfBlocks < 2)
-        {
-            return;
-        }
+		if (VertexSnapper.LevelEditorCentral.validation.amountOfBlocks < 1)
+		{
+			return;
+		}
 
-        if (UiTypingDetector.IsTyping())
-        {
-            return;
-        }
 
-        AudioEvents.MenuClick.PlayIfEnabled();
-        VertexSnapper.ChangeState(new StateSetFirstCursor());
-    }
+		if (UiTypingDetector.IsTyping())
+		{
+			return;
+		}
+
+		AudioEvents.MenuClick.PlayIfEnabled();
+		VertexSnapper.ChangeState(new StateSetFirstCursor());
+	}
+
+	private void ChangeStateToSnapGizmoToVertex()
+	{
+		if (!VertexSnapperConfigManager.IsEnabled)
+		{
+			return;
+		}
+
+		if (!VertexSnapper.IsInEditingMode)
+		{
+			return;
+		}
+
+		if (UiTypingDetector.IsTyping())
+		{
+			return;
+		}
+
+		AudioEvents.MenuClick.PlayIfEnabled();
+		VertexSnapper.ChangeState(new StateSnapGizmoToVertex());
+	}
 }

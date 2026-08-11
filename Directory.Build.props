@@ -1,0 +1,113 @@
+<Project>
+    <!--
+        Everything every Zeepkist mod in this family does the same way. MSBuild reads this
+        before the .csproj next to it, so a project file only has to carry what makes that
+        project different: its description, its own packages, its own targets.
+
+        The project name is not in here and does not need to be - $(MSBuildProjectName) comes
+        from the file name, so the assembly, the plugin folder and the release zip all follow
+        a rename of the .csproj on their own.
+
+        This file is copied between the mod repos rather than shared. They are separate
+        repositories, so a change here has to be carried over by hand - the trade for every
+        repo building on its own, offline, with nothing to publish first.
+    -->
+
+    <PropertyGroup>
+        <TargetFramework>net472</TargetFramework>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <LangVersion>latest</LangVersion>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <Authors>Hi Im Yolo</Authors>
+
+        <!--
+            No <Version> anywhere. MinVer derives it from the nearest v* tag, so the plugin,
+            the zip, the mod.io release and the tag can never disagree: there is only one place
+            to change it, and that place is `git tag`.
+        -->
+        <MinVerTagPrefix>v</MinVerTagPrefix>
+
+        <!-- Required for file:line stack traces -->
+        <DebugSymbols>true</DebugSymbols>
+        <DebugType>portable</DebugType>
+        <Optimize Condition="'$(Configuration)'=='Debug'">false</Optimize>
+
+        <RestoreAdditionalProjectSources>
+            https://api.nuget.org/v3/index.json;
+            https://nuget.bepinex.dev/v3/index.json;
+            https://nuget.samboy.dev/v3/index.json
+        </RestoreAdditionalProjectSources>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)'=='Debug'">
+        <DefineConstants>DEBUG;TRACE</DefineConstants>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Configuration)'=='Release'">
+        <DefineConstants>TRACE</DefineConstants>
+    </PropertyGroup>
+
+    <!--
+        The packages a BepInEx plugin cannot be one without. Everything else - ZeepSDK,
+        GameLibs, Costura, whatever that mod happens to need - belongs in the .csproj, where
+        the version can follow that mod's own pace.
+    -->
+    <ItemGroup>
+        <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all"/>
+        <PackageReference Include="BepInEx.Core" Version="5.*"/>
+        <PackageReference Include="BepInEx.PluginInfoProps" Version="2.*"/>
+        <PackageReference Include="MinVer" Version="7.*" PrivateAssets="all"/>
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
+        <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Reference Include="Microsoft.CSharp"/>
+    </ItemGroup>
+
+    <!--
+        BepInEx.PluginInfoProps reads $(Version) inside its own target, which by default runs
+        before MinVer has worked out what the version is - leaving PLUGIN_VERSION stuck at the
+        1.0.0 default while the assembly itself carried the right number. This forces MinVer to
+        go first.
+    -->
+    <Target Name="MinVerBeforePluginInfo" BeforeTargets="AddGeneratedFile" DependsOnTargets="MinVer">
+        <!--
+            BepInEx parses PLUGIN_VERSION with System.Version and skips the plugin outright if it
+            fails - no error, just "version is invalid" in the log. MinVer hands out a pre-release
+            version like 1.1.1-alpha.0.1 for every commit that is not exactly on a tag, which is
+            most of the time while developing, so strip it back to the numeric core.
+        -->
+        <PropertyGroup>
+            <Version>$(MinVerMajor).$(MinVerMinor).$(MinVerPatch)</Version>
+        </PropertyGroup>
+    </Target>
+
+    <!--
+        Copy into the game on build. Every task continues on error so a running game, which
+        holds the DLL open, produces a warning instead of a failed build.
+    -->
+    <PropertyGroup>
+        <ZeepkistDir Condition="'$(ZeepkistDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Zeepkist</ZeepkistDir>
+        <PluginDir>$(ZeepkistDir)\BepInEx\plugins\Sideloaded\Plugins\$(MSBuildProjectName)\</PluginDir>
+    </PropertyGroup>
+
+    <Target Name="DeployToZeepkist" AfterTargets="PostBuildEvent"
+            Condition="Exists('$(ZeepkistDir)') And '$(SkipZeepkistDeploy)' != 'true'">
+        <MakeDir Directories="$(PluginDir)" ContinueOnError="WarnAndContinue"/>
+        <Copy SourceFiles="$(TargetDir)$(MSBuildProjectName).dll" DestinationFolder="$(PluginDir)"
+              ContinueOnError="WarnAndContinue"/>
+        <Copy SourceFiles="$(TargetDir)$(MSBuildProjectName).pdb" DestinationFolder="$(PluginDir)"
+              Condition="Exists('$(TargetDir)$(MSBuildProjectName).pdb')" ContinueOnError="WarnAndContinue"/>
+
+        <!--
+            Anything a mod needs beside its DLL - an assets folder, a config template. A project
+            adds <ZeepkistDeployExtra Include="assets/**/*"/> and the layout under the project
+            directory is reproduced under the plugin directory.
+        -->
+        <Copy SourceFiles="@(ZeepkistDeployExtra)"
+              DestinationFiles="@(ZeepkistDeployExtra->'$(PluginDir)%(RelativeDir)%(Filename)%(Extension)')"
+              Condition="'@(ZeepkistDeployExtra)' != ''" ContinueOnError="WarnAndContinue"/>
+    </Target>
+</Project>

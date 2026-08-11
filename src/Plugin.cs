@@ -14,67 +14,69 @@ namespace VertexSnapper;
 [BepInDependency("ZeepSDK")]
 public class Plugin : BaseUnityPlugin
 {
-    private bool _configInitialized;
-    private Harmony _harmony;
+	private bool _configInitialized;
+	private Harmony _harmony;
 
-    private Plugin() { }
+	private Plugin()
+	{
+	}
 
-    public static Plugin Instance { get; private set; }
-    public new ManualLogSource Logger => base.Logger;
+	public static Plugin Instance { get; private set; }
+	public new ManualLogSource Logger => base.Logger;
 
-    private void Awake()
-    {
-        Instance = this;
-        _harmony = new Harmony(MyPluginInfo.PLUGIN_GUID);
-        _harmony.PatchAll();
+	private void Awake()
+	{
+		Instance = this;
+		_harmony = new Harmony(MyPluginInfo.PLUGIN_GUID);
+		_harmony.PatchAll();
 
-        Logger.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
-    }
+		Logger.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
+	}
 
-    private void Start()
-    {
-        SceneManager.sceneLoaded += HandleSceneLoaded;
-        LevelEditorApi.EnteredLevelEditor += HandleEnteredLevelEditor;
-        LevelEditorApi.ExitedLevelEditor += HandleExitedLevelEditor;
-    }
+	private void Start()
+	{
+		SceneManager.sceneLoaded += HandleSceneLoaded;
+		LevelEditorApi.EnteredLevelEditor += HandleEnteredLevelEditor;
+		LevelEditorApi.ExitedLevelEditor += HandleExitedLevelEditor;
+	}
 
-    private void OnDestroy()
-    {
-        SceneManager.sceneLoaded -= HandleSceneLoaded;
-        LevelEditorApi.EnteredLevelEditor -= HandleEnteredLevelEditor;
-        LevelEditorApi.ExitedLevelEditor -= HandleExitedLevelEditor;
+	private void OnDestroy()
+	{
+		SceneManager.sceneLoaded -= HandleSceneLoaded;
+		LevelEditorApi.EnteredLevelEditor -= HandleEnteredLevelEditor;
+		LevelEditorApi.ExitedLevelEditor -= HandleExitedLevelEditor;
 
-        _harmony?.UnpatchSelf();
-        _harmony = null;
-    }
+		_harmony?.UnpatchSelf();
+		_harmony = null;
+	}
 
-    private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
-    {
-        if (_configInitialized)
-        {
-            return;
-        }
+	private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
+	{
+		if (_configInitialized)
+		{
+			return;
+		}
 
-        if (scene.name != "3D_MainMenu")
-        {
-            return;
-        }
+		if (scene.name != "3D_MainMenu")
+		{
+			return;
+		}
 
-        VertexSnapperConfigManager.Init(Config);
-        _configInitialized = true;
+		VertexSnapperConfigManager.Init(Config);
+		_configInitialized = true;
 
-        Logger.LogInfo("[VertexSnapper] Config initialized on scene: 3D_MainMenu");
-    }
+		Logger.LogInfo("[VertexSnapper] Config initialized on scene: 3D_MainMenu");
+	}
 
-    private void HandleExitedLevelEditor()
-    {
-        VertexSnapper vertexSnapper = FindObjectOfType<VertexSnapper>();
-        Destroy(vertexSnapper);
-    }
+	private void HandleExitedLevelEditor()
+	{
+		VertexSnapper vertexSnapper = FindObjectOfType<VertexSnapper>();
+		Destroy(vertexSnapper);
+	}
 
-    private void HandleEnteredLevelEditor()
-    {
-        GameObject vertexSnapper = new GameObject("VertexSnapper");
-        vertexSnapper.AddComponent<VertexSnapper>();
-    }
+	private void HandleEnteredLevelEditor()
+	{
+		GameObject vertexSnapper = new("VertexSnapper");
+		vertexSnapper.AddComponent<VertexSnapper>();
+	}
 }

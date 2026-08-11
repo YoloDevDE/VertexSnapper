@@ -1,0 +1,168 @@
+root = true
+
+# One style for every Zeepkist mod in this family. Rider reads this file, so the style
+# lives in the repo rather than in a machine-local Rider profile - which is what let the
+# repos drift apart in the first place.
+#
+# This file is copied between the mod repos rather than shared, for the same reason
+# Directory.Build.props is: they are separate repositories and each has to work on its own.
+
+[*]
+indent_style = tab
+tab_width = 4
+indent_size = 4
+end_of_line = crlf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+# Not a preference: the YAML spec forbids a tab as indentation, so a GitHub workflow
+# indented with tabs is a file the runner refuses to parse. Rider will happily write one
+# if this section is missing, because the [*] rule above says tabs.
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2
+
+[*.{json,md}]
+indent_style = space
+indent_size = 2
+
+[*.{xml,csproj,props,targets}]
+indent_style = space
+indent_size = 4
+
+[*.cs]
+
+##
+## The rules that exist because Rider broke something
+##
+
+# Rider had been rewriting enums and initializers with the comma on its own line:
+#
+#     Default
+#     , Anton
+#     , Bangers
+#
+# This is not covered by any standard editorconfig key - it is a ReSharper wrapping
+# setting, which is why the previous .editorconfig did not stop it.
+resharper_wrap_before_comma = false
+resharper_csharp_wrap_before_comma = false
+resharper_wrap_before_eq = false
+resharper_wrap_before_binary_opsign = false
+resharper_wrap_before_ternary_opsigns = false
+
+##
+## Braces and newlines
+##
+
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+csharp_new_line_before_members_in_object_initializers = true
+csharp_new_line_before_members_in_anonymous_types = true
+csharp_new_line_between_query_expression_clauses = true
+
+# Always braces, even for a one-line body. A guard clause that later grows a second
+# statement is exactly where a missing brace bites.
+resharper_braces_for_ifelse = required
+resharper_braces_for_foreach = required
+resharper_braces_for_for = required
+resharper_braces_for_while = required
+resharper_braces_for_using = required
+resharper_braces_for_lock = required
+
+# ... except for a single-statement body that is itself a block-bodied lambda or a
+# property accessor, where a brace on its own line is pure noise.
+resharper_braces_redundant = true
+
+##
+## Indentation
+##
+
+csharp_indent_case_contents = true
+csharp_indent_switch_labels = true
+csharp_indent_labels = one_less_than_current
+csharp_indent_block_contents = true
+csharp_indent_braces = false
+
+##
+## Spaces
+##
+
+csharp_space_after_cast = false
+csharp_space_after_comma = true
+csharp_space_after_dot = false
+csharp_space_after_keywords_in_control_flow_statements = true
+csharp_space_after_semicolon_in_for_statement = true
+csharp_space_around_binary_operators = before_and_after
+csharp_space_before_colon_in_inheritance_clause = true
+csharp_space_before_comma = false
+csharp_space_before_dot = false
+csharp_space_before_open_square_brackets = false
+csharp_space_before_semicolon_in_for_statement = false
+csharp_space_between_method_call_empty_parameter_list_parentheses = false
+csharp_space_between_method_call_name_and_opening_parenthesis = false
+csharp_space_between_method_call_parameter_list_parentheses = false
+csharp_space_between_method_declaration_empty_parameter_list_parentheses = false
+csharp_space_between_method_declaration_name_and_open_parenthesis = false
+csharp_space_between_method_declaration_parameter_list_parentheses = false
+csharp_space_between_parentheses = false
+csharp_space_between_square_brackets = false
+
+##
+## Line length
+##
+
+# Long enough that a normal method signature or an interpolated log line fits on one
+# line, short enough to stay readable in a side-by-side diff.
+max_line_length = 130
+resharper_csharp_max_line_length = 130
+resharper_csharp_wrap_lines = true
+
+##
+## var
+##
+
+csharp_style_var_for_built_in_types = false:suggestion
+csharp_style_var_when_type_is_apparent = false:suggestion
+csharp_style_var_elsewhere = false:suggestion
+
+##
+## Usings
+##
+
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+csharp_using_directive_placement = outside_namespace:warning
+
+##
+## Naming
+##
+
+dotnet_naming_rule.public_members_must_be_pascal_case.symbols = public_symbols
+dotnet_naming_rule.public_members_must_be_pascal_case.style = pascal_case_style
+dotnet_naming_rule.public_members_must_be_pascal_case.severity = warning
+
+dotnet_naming_symbols.public_symbols.applicable_kinds = method, property, field, event
+dotnet_naming_symbols.public_symbols.applicable_accessibilities = public
+
+dotnet_naming_style.pascal_case_style.capitalization = pascal_case
+
+dotnet_naming_rule.private_fields_must_be_underscore_camel_case.symbols = private_fields
+dotnet_naming_rule.private_fields_must_be_underscore_camel_case.style = underscore_camel_case_style
+dotnet_naming_rule.private_fields_must_be_underscore_camel_case.severity = suggestion
+
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private
+
+dotnet_naming_style.underscore_camel_case_style.capitalization = camel_case
+dotnet_naming_style.underscore_camel_case_style.required_prefix = _
+
+##
+## Analyzers
+##
+
+# Formatting violations show up as build warnings, so a file that drifted is visible
+# before it reaches a commit rather than after.
+dotnet_diagnostic.IDE0055.severity = warning
