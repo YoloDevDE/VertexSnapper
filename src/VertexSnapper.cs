@@ -65,6 +65,9 @@ public class VertexSnapper : MonoBehaviour
 	public SnapMode CurrentSnapMode { get; private set; } = SnapMode.Point;
 	public SnapTarget FirstTarget { get; set; }
 	public SnapTarget SecondTarget { get; set; }
+	public SnapTarget FirstFace { get; set; }
+	public SnapTarget SecondFace { get; set; }
+	public GameObject ReferenceCursor { get; set; }
 
 	public Vector3 CubeSize { get; set; }
 	public float CubeScaleFactor { get; set; } = 0.5f;
@@ -165,12 +168,45 @@ public class VertexSnapper : MonoBehaviour
 
 	/// <summary>
 	///     Think of the two edges as a door hinge. Laying them together fixes the axis but leaves the
-	///     door free to swing, and the angle it comes to rest at is worked out rather than asked for -
-	///     see HingeSolver. Where no resting angle exists, the hinge alone is still worth having.
+	///     door free to swing, and the two faces are what say at which angle it comes to rest: they
+	///     end up lying on each other, facing into each other, both reaching the same way from the
+	///     hinge. The blocks meet along that surface rather than sitting side by side.
+	///
+	///     Without a face on both sides only the hinge is known, so it falls back to lining the edges
+	///     up and leaving the swing alone. A partial alignment beats none.
 	/// </summary>
 	private Quaternion FaceRotation()
 	{
-		return HingeSolver.Solve(FirstTarget, SecondTarget) ?? EdgeRotation();
+		if (FirstFace == null || SecondFace == null)
+		{
+			return EdgeRotation();
+		}
+
+		Vector3 sourceOutward = AwayFromEdge(FirstTarget, FirstFace);
+		Vector3 targetOutward = AwayFromEdge(SecondTarget, SecondFace);
+
+		if (sourceOutward == Vector3.zero || targetOutward == Vector3.zero)
+		{
+			return EdgeRotation();
+		}
+
+		return Quaternion.LookRotation(-SecondFace.Direction, targetOutward) *
+		       Quaternion.Inverse(Quaternion.LookRotation(FirstFace.Direction, sourceOutward));
+	}
+
+	/// <summary>
+	///     Which way the face reaches from the hinge, flattened into the face itself. Matching it to
+	///     the target's is what makes the two faces cover each other instead of lying end to end.
+	/// </summary>
+	private Vector3 AwayFromEdge(SnapTarget edge, SnapTarget face)
+	{
+		Vector3 outward = Vector3.ProjectOnPlane(face.Position - edge.Position, face.Direction);
+		if (outward.sqrMagnitude < Mathf.Epsilon)
+		{
+			return Vector3.zero;
+		}
+
+		return outward.normalized;
 	}
 
 	/// <summary>
@@ -192,6 +228,8 @@ public class VertexSnapper : MonoBehaviour
 	public void CycleSnapMode()
 	{
 		CurrentSnapMode = NextSnapMode();
+		FirstFace = null;
+		SecondFace = null;
 		// The face cursor carries a triangle mesh instead of the cube it was built with, so the
 		// cursor is thrown away rather than reshaped and comes back as a plain cube next frame.
 		SafeDestroy(FirstCursor);
@@ -214,6 +252,25 @@ public class VertexSnapper : MonoBehaviour
 		return SnapMode.Point;
 	}
 
+
+	/// <summary>
+	///     Where the face currently being worked on sits. The reference pick measures the mouse ray at
+	///     that distance, so it needs to know which of the two faces is in play.
+	/// </summary>
+	public Vector3 CurrentFacePosition()
+	{
+		if (CurrentState is StateSetSecondReference && SecondTarget != null)
+		{
+			return SecondTarget.Position;
+		}
+
+		if (FirstTarget != null)
+		{
+			return FirstTarget.Position;
+		}
+
+		return transform.position;
+	}
 
 	public void ChangeState(IVertexSnapperState<VertexSnapper> newVertexSnapperState)
 	{
@@ -491,6 +548,7 @@ public class VertexSnapper : MonoBehaviour
 		RestoreOriginalMaterials(TargetBlockMaterials);
 		SafeDestroy(FirstCursor);
 		SafeDestroy(SecondCursor);
+		SafeDestroy(ReferenceCursor);
 		SafeDestroy(Hologram);
 		ReAddPreviousBlockSelection();
 	}

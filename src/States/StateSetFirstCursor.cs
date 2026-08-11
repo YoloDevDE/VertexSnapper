@@ -123,6 +123,12 @@ public class StateSetFirstCursor : IVertexSnapperState<VertexSnapper>
 		}
 
 		AudioEvents.MenuClick.PlayIfEnabled();
+		if (VertexSnapper.CurrentSnapMode == SnapMode.Face)
+		{
+			VertexSnapper.ChangeState(new StateSetFirstReference());
+			return;
+		}
+
 		VertexSnapper.ChangeState(new StateRoaming());
 	}
 
