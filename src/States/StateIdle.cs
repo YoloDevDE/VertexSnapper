@@ -8,21 +8,18 @@ namespace VertexSnapper.States;
 
 public class StateIdle : IVertexSnapperState<VertexSnapper>
 {
-	private readonly KeyCode _gizmoKey = VertexSnapperConfigManager.GizmoKeyBind.Value;
 	private readonly KeyCode _vertexKey = VertexSnapperConfigManager.VertexKeyBind.Value;
 	public VertexSnapper VertexSnapper { get; set; }
 
 	public void Enter()
 	{
 		KeyInputManager.OnKeyDown[_vertexKey] += ChangeStateToSelectOriginVertex;
-		KeyInputManager.OnKeyDown[_gizmoKey] += ChangeStateToSnapGizmoToVertex;
 		VertexSnapperConfigManager.Config.SettingChanged += OnSettingChanged;
 	}
 
 	public void Exit()
 	{
 		KeyInputManager.OnKeyDown[_vertexKey] -= ChangeStateToSelectOriginVertex;
-		KeyInputManager.OnKeyDown[_gizmoKey] -= ChangeStateToSnapGizmoToVertex;
 		VertexSnapperConfigManager.Config.SettingChanged -= OnSettingChanged;
 	}
 
@@ -66,26 +63,5 @@ public class StateIdle : IVertexSnapperState<VertexSnapper>
 
 		AudioEvents.MenuClick.PlayIfEnabled();
 		VertexSnapper.ChangeState(new StateSetFirstCursor());
-	}
-
-	private void ChangeStateToSnapGizmoToVertex()
-	{
-		if (!VertexSnapperConfigManager.IsEnabled)
-		{
-			return;
-		}
-
-		if (!VertexSnapper.IsInEditingMode)
-		{
-			return;
-		}
-
-		if (UiTypingDetector.IsTyping())
-		{
-			return;
-		}
-
-		AudioEvents.MenuClick.PlayIfEnabled();
-		VertexSnapper.ChangeState(new StateSnapGizmoToVertex());
 	}
 }

@@ -1,4 +1,4 @@
-﻿using BepInEx.Configuration;
+using BepInEx.Configuration;
 using UnityEngine;
 using VertexSnapper.Helper;
 
@@ -7,8 +7,6 @@ namespace VertexSnapper.Managers;
 public abstract class VertexSnapperConfigManager
 {
 	private const KeyCode DefaultVertexKeyBind = KeyCode.T;
-
-	private const KeyCode DefaultGizmoKeyBind = KeyCode.G;
 
 	private const KeyCode DefaultNoteWindowKeyBind = KeyCode.F8;
 
@@ -43,7 +41,6 @@ public abstract class VertexSnapperConfigManager
 	// Convenience properties
 	public static bool IsEnabled => ModEnabled?.Value ?? true;
 	public static bool IsModifierPressed => Input.GetKey(ModifierKeyBind.Value) || ModifierKeyBind.Value == KeyCode.None;
-	public static ConfigEntry<KeyCode> GizmoKeyBind { get; private set; }
 
 	// Diagnostics
 	public static ConfigEntry<bool> TraceEnabled { get; private set; }
@@ -84,14 +81,6 @@ public abstract class VertexSnapperConfigManager
 				"Modifier Key",
 				KeyCode.LeftShift,
 				"If you wanna snap onto the selection itself, press this key while holding down the snapper key"
-			);
-
-		GizmoKeyBind =
-			Config.Bind(
-				"02 Keybinds",
-				"Gizmo Snap Key",
-				DefaultGizmoKeyBind,
-				"Holding down this key enables \"Snap Gizmo to Vertex\""
 			);
 
 		TraceEnabled =

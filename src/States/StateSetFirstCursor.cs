@@ -9,7 +9,6 @@ namespace VertexSnapper.States;
 
 public class StateSetFirstCursor : IVertexSnapperState<VertexSnapper>
 {
-	private LEV_GizmoHandler _gizmo;
 	public VertexSnapper VertexSnapper { get; set; }
 
 	public void Enter()
@@ -67,10 +66,6 @@ public class StateSetFirstCursor : IVertexSnapperState<VertexSnapper>
 			}
 
 			Vector3 closestVertexPosition = VertexSnapper.FindClosestVertexToHit(hit);
-			// _gizmo.angleOrigin = closestVertexPosition;
-			// VertexSnapper.LevelEditorCentral.gizmos.motherGizmo.transform.position = closestVertexPosition;
-			VertexSnapper.LevelEditorCentral.gizmos.motherOrigin = closestVertexPosition;
-			VertexSnapper.LevelEditorCentral.gizmos.SetMotherPosition(closestVertexPosition);
 			if (VertexSnapper.FirstCursor.transform.position == closestVertexPosition)
 			{
 				return;
