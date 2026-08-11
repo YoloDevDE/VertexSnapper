@@ -106,6 +106,6 @@ public abstract class SnapTargetFinder
 
 	private static SnapTarget Edge(Vector3 from, Vector3 to)
 	{
-		return new SnapTarget((from + to) * 0.5f, (to - from).normalized, null);
+		return new SnapTarget((from + to) * 0.5f, (to - from).normalized, [from, to]);
 	}
 }

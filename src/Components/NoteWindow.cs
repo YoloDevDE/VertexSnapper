@@ -42,16 +42,6 @@ public class NoteWindow : MonoBehaviour
 		Toggle();
 	}
 
-	private void OnGUI()
-	{
-		if (!IsOpen)
-		{
-			return;
-		}
-
-		_windowRect = GUI.Window(WindowId, _windowRect, DrawWindow, "VertexSnapper - note to the log");
-	}
-
 	private void OnDestroy()
 	{
 		if (!IsOpen)
@@ -60,6 +50,16 @@ public class NoteWindow : MonoBehaviour
 		}
 
 		Close();
+	}
+
+	private void OnGUI()
+	{
+		if (!IsOpen)
+		{
+			return;
+		}
+
+		_windowRect = GUI.Window(WindowId, _windowRect, DrawWindow, "VertexSnapper - note to the log");
 	}
 
 	private void Toggle()

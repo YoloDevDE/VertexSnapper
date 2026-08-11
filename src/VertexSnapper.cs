@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -84,24 +84,6 @@ public class VertexSnapper : MonoBehaviour
 		ChangeState(new StateIdle());
 	}
 
-	/// <summary>
-	///     Both the tracer and the note window live on this GameObject, so they come and go with the
-	///     level editor and need no teardown of their own. Neither is created unless the config asks
-	///     for it - a trace that costs nothing when switched off is one nobody has to remember to
-	///     switch off.
-	/// </summary>
-	private void StartTracing()
-	{
-		if (!VertexSnapperConfigManager.TraceEnabled.Value)
-		{
-			return;
-		}
-
-		_trace = new TraceService(this);
-		gameObject.AddComponent<TraceBehaviour>().Bind(_trace);
-		gameObject.AddComponent<NoteWindow>();
-	}
-
 	private void Update()
 	{
 		_pulseTime += Time.deltaTime;
@@ -136,6 +118,24 @@ public class VertexSnapper : MonoBehaviour
 	{
 		CurrentState?.Exit();
 		CurrentState = null;
+	}
+
+	/// <summary>
+	///     Both the tracer and the note window live on this GameObject, so they come and go with the
+	///     level editor and need no teardown of their own. Neither is created unless the config asks
+	///     for it - a trace that costs nothing when switched off is one nobody has to remember to
+	///     switch off.
+	/// </summary>
+	private void StartTracing()
+	{
+		if (!VertexSnapperConfigManager.TraceEnabled.Value)
+		{
+			return;
+		}
+
+		_trace = new TraceService(this);
+		gameObject.AddComponent<TraceBehaviour>().Bind(_trace);
+		gameObject.AddComponent<NoteWindow>();
 	}
 
 
@@ -514,7 +514,6 @@ public class VertexSnapper : MonoBehaviour
 	{
 		material.SetFloat(FillAlpha, a);
 	}
-
 
 
 	public void CacheOriginalMaterials(List<BlockProperties> blocks, Dictionary<Renderer, Material[]> originalMaterialsCache)

@@ -8,8 +8,7 @@ namespace VertexSnapper.Helper;
 
 public abstract class CursorFactory
 {
-	private const float EdgeThickness = 0.3f;
-	private const float EdgeLength = 3f;
+	private const float EdgeThickness = 0.12f;
 	private const float FaceLift = 0.01f;
 
 	public static GameObject CreateCursor(
@@ -49,15 +48,25 @@ public abstract class CursorFactory
 			return;
 		}
 
-		if (mode == SnapMode.Edge && target.Direction != Vector3.zero)
+		if (mode == SnapMode.Edge && target.Corners != null)
 		{
-			cursor.transform.rotation = Quaternion.LookRotation(target.Direction);
-			cursor.transform.localScale = new Vector3(scale * EdgeThickness, scale * EdgeThickness, scale * EdgeLength);
+			ShapeAsBar(cursor, target, scale);
 			return;
 		}
 
 		cursor.transform.rotation = Quaternion.identity;
 		cursor.transform.localScale = Vector3.one * scale;
+	}
+
+	/// <summary>
+	///     Stretches the cube to cover the hit edge end to end, so the highlight shows exactly which
+	///     edge was found rather than a bar of arbitrary length pointing the right way.
+	/// </summary>
+	private static void ShapeAsBar(GameObject cursor, SnapTarget target, float scale)
+	{
+		float length = (target.Corners[1] - target.Corners[0]).magnitude;
+		cursor.transform.rotation = Quaternion.LookRotation(target.Direction);
+		cursor.transform.localScale = new Vector3(scale * EdgeThickness, scale * EdgeThickness, length);
 	}
 
 	/// <summary>
