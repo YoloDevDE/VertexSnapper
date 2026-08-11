@@ -65,6 +65,9 @@ public class VertexSnapper : MonoBehaviour
 	public SnapMode CurrentSnapMode { get; private set; } = SnapMode.Point;
 	public SnapTarget FirstTarget { get; set; }
 	public SnapTarget SecondTarget { get; set; }
+	public Vector3 FirstReference { get; set; }
+	public Vector3 SecondReference { get; set; }
+	public GameObject ReferenceCursor { get; set; }
 
 	public Vector3 CubeSize { get; set; }
 	public float CubeScaleFactor { get; set; } = 0.5f;
@@ -171,8 +174,8 @@ public class VertexSnapper : MonoBehaviour
 	/// </summary>
 	private Quaternion FaceRotation()
 	{
-		Vector3 sourceUp = Vector3.ProjectOnPlane(FirstTarget.Reference, FirstTarget.Direction);
-		Vector3 targetUp = Vector3.ProjectOnPlane(SecondTarget.Reference, SecondTarget.Direction);
+		Vector3 sourceUp = Vector3.ProjectOnPlane(FirstReference, FirstTarget.Direction);
+		Vector3 targetUp = Vector3.ProjectOnPlane(SecondReference, SecondTarget.Direction);
 
 		if (sourceUp.sqrMagnitude < Mathf.Epsilon || targetUp.sqrMagnitude < Mathf.Epsilon)
 		{
@@ -208,6 +211,8 @@ public class VertexSnapper : MonoBehaviour
 	public void CycleSnapMode()
 	{
 		CurrentSnapMode = NextSnapMode();
+		FirstReference = Vector3.zero;
+		SecondReference = Vector3.zero;
 		// The face cursor carries a triangle mesh instead of the cube it was built with, so the
 		// cursor is thrown away rather than reshaped and comes back as a plain cube next frame.
 		SafeDestroy(FirstCursor);
@@ -230,6 +235,25 @@ public class VertexSnapper : MonoBehaviour
 		return SnapMode.Point;
 	}
 
+
+	/// <summary>
+	///     Where the face currently being worked on sits. The reference pick measures the mouse ray at
+	///     that distance, so it needs to know which of the two faces is in play.
+	/// </summary>
+	public Vector3 CurrentFacePosition()
+	{
+		if (CurrentState is StateSetSecondReference && SecondTarget != null)
+		{
+			return SecondTarget.Position;
+		}
+
+		if (FirstTarget != null)
+		{
+			return FirstTarget.Position;
+		}
+
+		return transform.position;
+	}
 
 	public void ChangeState(IVertexSnapperState<VertexSnapper> newVertexSnapperState)
 	{
@@ -507,6 +531,7 @@ public class VertexSnapper : MonoBehaviour
 		RestoreOriginalMaterials(TargetBlockMaterials);
 		SafeDestroy(FirstCursor);
 		SafeDestroy(SecondCursor);
+		SafeDestroy(ReferenceCursor);
 		SafeDestroy(Hologram);
 		ReAddPreviousBlockSelection();
 	}

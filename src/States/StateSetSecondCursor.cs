@@ -130,6 +130,12 @@ public class StateSetSecondCursor : IVertexSnapperState<VertexSnapper>
 
 	private void InvokeSnapProcess()
 	{
+		if (VertexSnapper.CurrentSnapMode == SnapMode.Face)
+		{
+			VertexSnapper.ChangeState(new StateSetSecondReference());
+			return;
+		}
+
 		if (VertexSnapper.PerformSnap())
 		{
 			ChangeStateToCleanUp();
