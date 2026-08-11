@@ -72,13 +72,13 @@ public class StateSetSecondReference : IVertexSnapperState<VertexSnapper>
 
 	public void Update()
 	{
-		VertexSnapper.SecondReference = ReferencePicker.Update(VertexSnapper, VertexSnapper.SecondTarget);
+		VertexSnapper.SecondReferenceEdge = ReferencePicker.Update(VertexSnapper, VertexSnapper.SecondTarget);
 		VertexSnapper.MoveHologramToCursor(VertexSnapper.SecondTarget.Position);
 	}
 
 	private void Confirm()
 	{
-		if (VertexSnapper.SecondReference == Vector3.zero)
+		if (VertexSnapper.SecondReferenceEdge == null)
 		{
 			AudioEvents.Blarghl.PlayIfEnabled();
 			return;

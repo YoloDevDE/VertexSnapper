@@ -38,12 +38,12 @@ public class StateSetFirstReference : IVertexSnapperState<VertexSnapper>
 
 	public void Update()
 	{
-		VertexSnapper.FirstReference = ReferencePicker.Update(VertexSnapper, VertexSnapper.FirstTarget);
+		VertexSnapper.FirstReferenceEdge = ReferencePicker.Update(VertexSnapper, VertexSnapper.FirstTarget);
 	}
 
 	private void Confirm()
 	{
-		if (VertexSnapper.FirstReference == Vector3.zero)
+		if (VertexSnapper.FirstReferenceEdge == null)
 		{
 			AudioEvents.Blarghl.PlayIfEnabled();
 			return;

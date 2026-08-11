@@ -10,7 +10,8 @@ section, no release - so write one before tagging.
   merely nearby.
 - **Face snapping aligns all three axes.** A face alone leaves the turn around its own normal open,
   which used to mean snapping twice. Face mode now asks for four picks instead of two: a face, then
-  one of its edges to align along, and the same again on the target. Nothing is guessed.
+  one of its edges, and the same again on the target. The two chosen edges end up parallel, and
+  which side of its face each one sits on decides which way round the block lands.
 - **The cursor shows what it found.** A cube on a point, a bar covering the edge end to end, and the
   surface itself for a face. A cube side lights up whole rather than as one of its two triangles.
 - **Undo restores rotation too**, not just position.

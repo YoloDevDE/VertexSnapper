@@ -14,33 +14,16 @@ public abstract class ReferencePicker
 {
 	private const float BarThickness = 0.18f;
 
-	public static Vector3 Update(VertexSnapper vertexSnapper, SnapTarget target)
+	public static Vector3[] Update(VertexSnapper vertexSnapper, SnapTarget target)
 	{
 		if (target?.Edges == null || target.Edges.Length == 0)
 		{
-			return Vector3.zero;
+			return null;
 		}
 
 		Vector3[] edge = NearestEdge(target, MouseRay(vertexSnapper));
 		ShowBar(vertexSnapper, edge);
-		return TowardsEdge(target, edge);
-	}
-
-	/// <summary>
-	///     Points from the middle of the face at the chosen edge, rather than along that edge. The two
-	///     long edges of a cube side run parallel, so as directions they are the same thing and picking
-	///     the top one would do exactly what picking the bottom one does. As sides of the face they are
-	///     opposites, which is what one means by choosing between them.
-	/// </summary>
-	private static Vector3 TowardsEdge(SnapTarget target, Vector3[] edge)
-	{
-		Vector3 towards = Vector3.ProjectOnPlane((edge[0] + edge[1]) * 0.5f - target.Position, target.Direction);
-		if (towards.sqrMagnitude < Mathf.Epsilon)
-		{
-			return Vector3.zero;
-		}
-
-		return towards.normalized;
+		return edge;
 	}
 
 	/// <summary>
