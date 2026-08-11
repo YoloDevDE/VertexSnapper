@@ -10,9 +10,8 @@ using ZeepSDK.Messaging;
 namespace VertexSnapper.States;
 
 /// <summary>
-///     A face fixes two axes and leaves the turn around its own normal open. This is where the user
-///     names the third: one of the edges of the face just picked. Guessing it from the mouse was
-///     tried and felt arbitrary, so it is now a click of its own.
+///     The edge is the hinge; this is where the user says at which angle the door hangs on it, by
+///     picking one of the faces that meet at that edge.
 /// </summary>
 public class StateSetFirstReference : IVertexSnapperState<VertexSnapper>
 {
@@ -25,7 +24,7 @@ public class StateSetFirstReference : IVertexSnapperState<VertexSnapper>
 		KeyInputManager.OnMouseDown[2] += ChangeStateToAbort;
 		LevelEditorApi.BlockMouseInput(this);
 
-		MessengerApi.Log("[Vertexsnapper] Now pick the edge to align along.", 2f);
+		MessengerApi.Log("[Vertexsnapper] Now pick the face that hangs off this edge.", 2f);
 	}
 
 	public void Exit()
@@ -38,12 +37,25 @@ public class StateSetFirstReference : IVertexSnapperState<VertexSnapper>
 
 	public void Update()
 	{
-		VertexSnapper.FirstReferenceEdge = ReferencePicker.Update(VertexSnapper, VertexSnapper.FirstTarget);
+		VertexSnapper.FirstFace = FacePicker.Update(VertexSnapper, VertexSnapper.FirstTarget, Cursor());
+	}
+
+	private GameObject Cursor()
+	{
+		if (!VertexSnapper.ReferenceCursor)
+		{
+			VertexSnapper.ReferenceCursor = CursorFactory.CreateCursor(
+				"ReferenceCursor",
+				MaterialFactory.CreateUnlitMaterial(Color.white),
+				VertexSnapper.gameObject);
+		}
+
+		return VertexSnapper.ReferenceCursor;
 	}
 
 	private void Confirm()
 	{
-		if (VertexSnapper.FirstReferenceEdge == null)
+		if (VertexSnapper.FirstFace == null)
 		{
 			AudioEvents.Blarghl.PlayIfEnabled();
 			return;

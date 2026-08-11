@@ -92,7 +92,6 @@ public class StateSetSecondCursor : IVertexSnapperState<VertexSnapper>
 			CursorFactory.ShapeCursor(
 				VertexSnapper.SecondCursor,
 				target,
-				VertexSnapper.CurrentSnapMode,
 				VertexSnapper.CubeScaleFactor);
 
 			if (VertexSnapper.SecondCursor.transform.position != target.Position)

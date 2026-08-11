@@ -37,26 +37,26 @@ public abstract class CursorFactory
 	}
 
 	/// <summary>
-	///     Makes the cube read as what it sits on: a bar along an edge, the surface itself for a
-	///     face, a cube on a point. Without this all three modes look identical and nobody can tell
-	///     which one is on.
+	///     Makes the cube read as what it sits on: a bar along an edge, the surface itself for a face,
+	///     a cube on a point. The target says which it is by how many corners it brought - two for an
+	///     edge, three per triangle for a face - so the caller does not have to.
 	/// </summary>
-	public static void ShapeCursor(GameObject cursor, SnapTarget target, SnapMode mode, float scale)
+	public static void ShapeCursor(GameObject cursor, SnapTarget target, float scale)
 	{
-		if (mode == SnapMode.Face && target.Corners != null)
+		if (target.Corners == null)
 		{
-			ShapeAsFace(cursor, target);
+			cursor.transform.rotation = Quaternion.identity;
+			cursor.transform.localScale = Vector3.one * scale;
 			return;
 		}
 
-		if (mode == SnapMode.Edge && target.Corners != null)
+		if (target.Corners[0].Length == 2)
 		{
 			ShapeAsBar(cursor, target, scale);
 			return;
 		}
 
-		cursor.transform.rotation = Quaternion.identity;
-		cursor.transform.localScale = Vector3.one * scale;
+		ShapeAsFace(cursor, target);
 	}
 
 	/// <summary>

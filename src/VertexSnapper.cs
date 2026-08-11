@@ -65,8 +65,8 @@ public class VertexSnapper : MonoBehaviour
 	public SnapMode CurrentSnapMode { get; private set; } = SnapMode.Point;
 	public SnapTarget FirstTarget { get; set; }
 	public SnapTarget SecondTarget { get; set; }
-	public Vector3[] FirstReferenceEdge { get; set; }
-	public Vector3[] SecondReferenceEdge { get; set; }
+	public SnapTarget FirstFace { get; set; }
+	public SnapTarget SecondFace { get; set; }
 	public GameObject ReferenceCursor { get; set; }
 
 	public Vector3 CubeSize { get; set; }
@@ -167,84 +167,46 @@ public class VertexSnapper : MonoBehaviour
 	}
 
 	/// <summary>
-	///     Laying the faces together settles two axes and leaves the block's own direction open, which
-	///     is what the two edge picks are for: the chosen edges end up parallel, and that is the third
-	///     axis. What gets aligned is the direction of the edges themselves - aligning the way each
-	///     face points at its edge instead would leave the edges skewed on anything but a clean
-	///     rectangle, and a curved road is made of narrow strips where they are never clean.
+	///     Think of the two edges as a door hinge. Laying them together fixes the axis but leaves the
+	///     door free to swing, and the two faces are what say at which angle it comes to rest: they
+	///     end up in one plane, both pointing the same way, each block on its own side of the hinge.
 	///
-	///     Without both edges it falls back to turning the normals against each other and leaves the
-	///     roll alone. A partial alignment beats none.
+	///     Without a face on both sides only the hinge is known, so it falls back to lining the edges
+	///     up and leaving the swing alone. A partial alignment beats none.
 	/// </summary>
 	private Quaternion FaceRotation()
 	{
-		if (FirstReferenceEdge == null || SecondReferenceEdge == null)
+		if (FirstFace == null || SecondFace == null)
 		{
-			return Quaternion.FromToRotation(FirstTarget.Direction, -SecondTarget.Direction);
+			return EdgeRotation();
 		}
 
-		Vector3 sourceAlong = Along(FirstReferenceEdge, FirstTarget.Direction);
-		Vector3 targetAlong = Along(SecondReferenceEdge, SecondTarget.Direction);
+		Vector3 sourceOutward = AwayFromEdge(FirstTarget, FirstFace);
+		Vector3 targetOutward = AwayFromEdge(SecondTarget, SecondFace);
 
-		if (sourceAlong == Vector3.zero || targetAlong == Vector3.zero)
+		if (sourceOutward == Vector3.zero || targetOutward == Vector3.zero)
 		{
-			return Quaternion.FromToRotation(FirstTarget.Direction, -SecondTarget.Direction);
+			return EdgeRotation();
 		}
 
-		Quaternion aligned = Quaternion.LookRotation(-SecondTarget.Direction, targetAlong) *
-		                     Quaternion.Inverse(Quaternion.LookRotation(FirstTarget.Direction, sourceAlong));
-
-		if (!NeedsFlip(aligned))
-		{
-			return aligned;
-		}
-
-		return Quaternion.AngleAxis(180f, SecondTarget.Direction) * aligned;
+		return Quaternion.LookRotation(SecondFace.Direction, -targetOutward) *
+		       Quaternion.Inverse(Quaternion.LookRotation(FirstFace.Direction, sourceOutward));
 	}
 
 	/// <summary>
-	///     The chosen edge, flattened onto its own face. Lining these two up is the whole point of
-	///     the second pick: what the user asks for is that the two edges end up parallel.
+	///     Which way the face reaches from the hinge, flattened into the face itself. Turning this
+	///     against the target's leaves the two blocks on opposite sides of the shared edge instead of
+	///     stacked on top of each other.
 	/// </summary>
-	private Vector3 Along(Vector3[] edge, Vector3 normal)
+	private Vector3 AwayFromEdge(SnapTarget edge, SnapTarget face)
 	{
-		Vector3 along = Vector3.ProjectOnPlane(edge[1] - edge[0], normal);
-		if (along.sqrMagnitude < Mathf.Epsilon)
+		Vector3 outward = Vector3.ProjectOnPlane(face.Position - edge.Position, face.Direction);
+		if (outward.sqrMagnitude < Mathf.Epsilon)
 		{
 			return Vector3.zero;
 		}
 
-		return along.normalized;
-	}
-
-	/// <summary>
-	///     Parallel is not yet an answer: the top and the bottom edge of a rectangle run the same way,
-	///     so aligning directions alone would leave the block on whichever side it happened to start.
-	///     Which side of its face the edge sits on tells the two apart, and half a turn about the
-	///     contact normal swaps them without disturbing the parallel edges.
-	/// </summary>
-	private bool NeedsFlip(Quaternion aligned)
-	{
-		Vector3 sourceSide = Sideways(FirstReferenceEdge, FirstTarget);
-		Vector3 targetSide = Sideways(SecondReferenceEdge, SecondTarget);
-
-		if (sourceSide == Vector3.zero || targetSide == Vector3.zero)
-		{
-			return false;
-		}
-
-		return Vector3.Dot(aligned * sourceSide, targetSide) < 0f;
-	}
-
-	private Vector3 Sideways(Vector3[] edge, SnapTarget target)
-	{
-		Vector3 sideways = Vector3.ProjectOnPlane((edge[0] + edge[1]) * 0.5f - target.Position, target.Direction);
-		if (sideways.sqrMagnitude < Mathf.Epsilon)
-		{
-			return Vector3.zero;
-		}
-
-		return sideways.normalized;
+		return outward.normalized;
 	}
 
 	/// <summary>
@@ -266,8 +228,8 @@ public class VertexSnapper : MonoBehaviour
 	public void CycleSnapMode()
 	{
 		CurrentSnapMode = NextSnapMode();
-		FirstReferenceEdge = null;
-		SecondReferenceEdge = null;
+		FirstFace = null;
+		SecondFace = null;
 		// The face cursor carries a triangle mesh instead of the cube it was built with, so the
 		// cursor is thrown away rather than reshaped and comes back as a plain cube next frame.
 		SafeDestroy(FirstCursor);

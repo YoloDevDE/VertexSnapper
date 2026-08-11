@@ -10,9 +10,9 @@ using ZeepSDK.Messaging;
 namespace VertexSnapper.States;
 
 /// <summary>
-///     The last of the four picks: which edge of the target face the selection lines up with. The
-///     hologram turns as the mouse moves between the candidates, so the result is visible before the
-///     click rather than after it.
+///     The last of the four picks: which face at the target edge the selection comes to rest against.
+///     The hologram swings as the mouse moves between the candidates, so the angle is visible before
+///     the click rather than after it.
 /// </summary>
 public class StateSetSecondReference : IVertexSnapperState<VertexSnapper>
 {
@@ -26,7 +26,7 @@ public class StateSetSecondReference : IVertexSnapperState<VertexSnapper>
 		KeyInputManager.OnMouseDown[2] += ChangeStateToAbort;
 		LevelEditorApi.BlockMouseInput(this);
 
-		MessengerApi.Log("[Vertexsnapper] Pick the target edge to line up with.", 2f);
+		MessengerApi.Log("[Vertexsnapper] Pick the target face to lie flush with.", 2f);
 	}
 
 	public void Exit()
@@ -51,7 +51,6 @@ public class StateSetSecondReference : IVertexSnapperState<VertexSnapper>
 		CursorFactory.ShapeCursor(
 			VertexSnapper.SecondCursor,
 			VertexSnapper.SecondTarget,
-			SnapMode.Face,
 			VertexSnapper.CubeScaleFactor);
 
 		if (!VertexSnapperConfigManager.MovingHologramEnabled.Value)
@@ -72,13 +71,13 @@ public class StateSetSecondReference : IVertexSnapperState<VertexSnapper>
 
 	public void Update()
 	{
-		VertexSnapper.SecondReferenceEdge = ReferencePicker.Update(VertexSnapper, VertexSnapper.SecondTarget);
+		VertexSnapper.SecondFace = FacePicker.Update(VertexSnapper, VertexSnapper.SecondTarget, Cursor());
 		VertexSnapper.MoveHologramToCursor(VertexSnapper.SecondTarget.Position);
 	}
 
 	private void Confirm()
 	{
-		if (VertexSnapper.SecondReferenceEdge == null)
+		if (VertexSnapper.SecondFace == null)
 		{
 			AudioEvents.Blarghl.PlayIfEnabled();
 			return;
@@ -88,6 +87,19 @@ public class StateSetSecondReference : IVertexSnapperState<VertexSnapper>
 		{
 			VertexSnapper.ChangeState(new StateCleanUp());
 		}
+	}
+
+	private GameObject Cursor()
+	{
+		if (!VertexSnapper.ReferenceCursor)
+		{
+			VertexSnapper.ReferenceCursor = CursorFactory.CreateCursor(
+				"ReferenceCursor",
+				MaterialFactory.CreateUnlitMaterial(Color.white),
+				VertexSnapper.gameObject);
+		}
+
+		return VertexSnapper.ReferenceCursor;
 	}
 
 	private void ChangeStateToAbort()

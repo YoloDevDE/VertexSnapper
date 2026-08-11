@@ -78,7 +78,6 @@ public class StateSetFirstCursor : IVertexSnapperState<VertexSnapper>
 			CursorFactory.ShapeCursor(
 				VertexSnapper.FirstCursor,
 				target,
-				VertexSnapper.CurrentSnapMode,
 				VertexSnapper.CubeScaleFactor);
 
 			if (VertexSnapper.FirstCursor.transform.position == target.Position)

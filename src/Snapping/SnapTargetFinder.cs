@@ -10,6 +10,8 @@ namespace VertexSnapper.Snapping;
 /// </summary>
 public abstract class SnapTargetFinder
 {
+	private const float SamePointTolerance = 0.0001f;
+
 	public static SnapTarget Find(RaycastHit hit, SnapMode mode)
 	{
 		BlockProperties block = hit.collider.gameObject.GetComponentInParent<BlockProperties>();
@@ -18,17 +20,36 @@ public abstract class SnapTargetFinder
 			return null;
 		}
 
-		IEnumerable<SnapTarget> candidates = block.GetComponentsInChildren<MeshFilter>()
-			.Where(meshFilter => meshFilter && meshFilter.sharedMesh)
-			.SelectMany(meshFilter => CandidatesOf(meshFilter, mode, hit.point));
+		IEnumerable<SnapTarget> candidates = MeshFiltersOf(block)
+			.SelectMany(meshFilter => CandidatesOf(meshFilter, mode));
 
 		return Closest(candidates, hit.point);
 	}
 
 	/// <summary>
-	///     The closest point on a segment, which is how both the finder and the reference pick decide
-	///     what the mouse is nearest to. Comparing against midpoints instead would let a short edge
-	///     beat the long one the cursor is actually sitting on.
+	///     The flat surfaces that meet at an edge - two on a solid block, one at an open border. An
+	///     edge on its own leaves open which way the block folds away from it, and this is the choice
+	///     the user is offered to settle that.
+	/// </summary>
+	public static List<SnapTarget> FacesAt(SnapTarget edge)
+	{
+		if (edge?.Source == null)
+		{
+			return [];
+		}
+
+		Transform meshTransform = edge.Source.transform;
+
+		return MeshFaceCache.FacesOf(edge.Source.sharedMesh)
+			.Select(face => Face(face, edge.Source, meshTransform, edge.Position))
+			.Where(face => Touches(face, edge))
+			.ToList();
+	}
+
+	/// <summary>
+	///     The closest point on a segment, which is how the finder decides what the mouse is nearest
+	///     to. Comparing against midpoints instead would let a short edge beat the long one the cursor
+	///     is actually sitting on.
 	/// </summary>
 	public static Vector3 ClosestOnSegment(Vector3 from, Vector3 to, Vector3 point)
 	{
@@ -41,19 +62,27 @@ public abstract class SnapTargetFinder
 		return from + along * Mathf.Clamp01(Vector3.Dot(point - from, along) / along.sqrMagnitude);
 	}
 
-	private static IEnumerable<SnapTarget> CandidatesOf(MeshFilter meshFilter, SnapMode mode, Vector3 hitPoint)
+	private static IEnumerable<MeshFilter> MeshFiltersOf(BlockProperties block)
+	{
+		return block.GetComponentsInChildren<MeshFilter>().Where(meshFilter => meshFilter && meshFilter.sharedMesh);
+	}
+
+	private static bool Touches(SnapTarget face, SnapTarget edge)
+	{
+		return face.Corners
+			.SelectMany(triangle => triangle)
+			.Count(corner => (corner - edge.Corners[0][0]).sqrMagnitude < SamePointTolerance ||
+			                 (corner - edge.Corners[0][1]).sqrMagnitude < SamePointTolerance) >= 2;
+	}
+
+	private static IEnumerable<SnapTarget> CandidatesOf(MeshFilter meshFilter, SnapMode mode)
 	{
 		if (mode == SnapMode.Point)
 		{
 			return PointsOf(meshFilter);
 		}
 
-		if (mode == SnapMode.Edge)
-		{
-			return EdgesOf(meshFilter);
-		}
-
-		return FacesOf(meshFilter, hitPoint);
+		return EdgesOf(meshFilter);
 	}
 
 	private static SnapTarget Closest(IEnumerable<SnapTarget> candidates, Vector3 hitPoint)
@@ -81,7 +110,7 @@ public abstract class SnapTargetFinder
 		Transform meshTransform = meshFilter.transform;
 		return meshFilter.sharedMesh.vertices
 			.Select(meshTransform.TransformPoint)
-			.Select(vertex => new SnapTarget(vertex, Vector3.zero, null, null, vertex));
+			.Select(vertex => new SnapTarget(vertex, Vector3.zero, null, vertex, meshFilter));
 	}
 
 	private static IEnumerable<SnapTarget> EdgesOf(MeshFilter meshFilter)
@@ -96,23 +125,13 @@ public abstract class SnapTargetFinder
 			Vector3 second = meshTransform.TransformPoint(vertices[triangles[i + 1]]);
 			Vector3 third = meshTransform.TransformPoint(vertices[triangles[i + 2]]);
 
-			yield return Edge(first, second);
-			yield return Edge(second, third);
-			yield return Edge(third, first);
+			yield return Edge(first, second, meshFilter);
+			yield return Edge(second, third, meshFilter);
+			yield return Edge(third, first, meshFilter);
 		}
 	}
 
-	/// <summary>
-	///     One target per flat surface, not per triangle, so a cube side is offered whole and the seam
-	///     running across it never shows up as an edge of its own.
-	/// </summary>
-	private static IEnumerable<SnapTarget> FacesOf(MeshFilter meshFilter, Vector3 hitPoint)
-	{
-		Transform meshTransform = meshFilter.transform;
-		return MeshFaceCache.FacesOf(meshFilter.sharedMesh).Select(face => Face(face, meshTransform, hitPoint));
-	}
-
-	private static SnapTarget Face(MeshFace face, Transform meshTransform, Vector3 hitPoint)
+	private static SnapTarget Face(MeshFace face, MeshFilter source, Transform meshTransform, Vector3 hitPoint)
 	{
 		Vector3[][] corners = face.Triangles
 			.Select(triangle => triangle.Select(meshTransform.TransformPoint).ToArray())
@@ -122,15 +141,10 @@ public abstract class SnapTargetFinder
 			meshTransform.TransformPoint(face.Center),
 			meshTransform.TransformDirection(face.Normal).normalized,
 			corners,
-			ReferenceEdges(face, corners, meshTransform),
-			NearestPointOn(corners, hitPoint));
+			NearestPointOn(corners, hitPoint),
+			source);
 	}
 
-	/// <summary>
-	///     A face has to be found from wherever the mouse touches it, not from its middle. Measuring
-	///     against the middle would hand a large cube side to any small face that happens to sit
-	///     closer to it.
-	/// </summary>
 	private static Vector3 NearestPointOn(Vector3[][] corners, Vector3 hitPoint)
 	{
 		return corners
@@ -144,31 +158,9 @@ public abstract class SnapTargetFinder
 			.First();
 	}
 
-	/// <summary>
-	///     What the user can align the face along. A flat surface offers its outline, so the seam
-	///     between two coplanar triangles is never on the list. A curved surface is a lone triangle
-	///     with no outline worth the name, and there its own three edges are the honest choice.
-	/// </summary>
-	private static Vector3[][] ReferenceEdges(MeshFace face, Vector3[][] corners, Transform meshTransform)
-	{
-		if (face.OutlineEdges.Count > 0)
-		{
-			return face.OutlineEdges
-				.Select(edge => edge.Select(meshTransform.TransformPoint).ToArray())
-				.ToArray();
-		}
-
-		return
-		[
-			[corners[0][0], corners[0][1]],
-			[corners[0][1], corners[0][2]],
-			[corners[0][2], corners[0][0]]
-		];
-	}
-
-	private static SnapTarget Edge(Vector3 from, Vector3 to)
+	private static SnapTarget Edge(Vector3 from, Vector3 to, MeshFilter source)
 	{
 		Vector3 middle = (from + to) * 0.5f;
-		return new SnapTarget(middle, (to - from).normalized, [[from, to]], null, middle);
+		return new SnapTarget(middle, (to - from).normalized, [[from, to]], middle, source);
 	}
 }

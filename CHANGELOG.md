@@ -8,12 +8,13 @@ section, no release - so write one before tagging.
 - **Three snap levels.** Press `Tab` while the snapper key is held to cycle Point, Edge and Face.
   Point moves the selection as before. Edge and Face also turn it, so it arrives lined up instead of
   merely nearby.
-- **Face snapping aligns all three axes.** A face alone leaves the turn around its own normal open,
-  which used to mean snapping twice. Face mode now asks for four picks instead of two: a face, then
-  one of its edges, and the same again on the target. The two chosen edges end up parallel, and
-  which side of its face each one sits on decides which way round the block lands.
+- **Face mode works like a door hinge.** Pick an edge on your selection, then the face that hangs
+  off it, and the same two on the target. The edges come together as the hinge, and the two faces
+  come to rest in one plane - which is what settles the angle the block swings to. Four picks, and
+  the block arrives fully aligned instead of needing a second snap to straighten it.
 - **The cursor shows what it found.** A cube on a point, a bar covering the edge end to end, and the
-  surface itself for a face. A cube side lights up whole rather than as one of its two triangles.
+  surface itself for a face. A cube side lights up whole rather than as one of the two triangles it
+  is built from.
 - **Undo restores rotation too**, not just position.
 - Removed the unfinished gizmo snapping. It never worked, and it was quietly moving the editor's own
   gizmo during ordinary vertex snaps.
