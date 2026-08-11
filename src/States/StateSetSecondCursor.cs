@@ -5,6 +5,7 @@ using UnityEngine;
 using VertexSnapper.Components;
 using VertexSnapper.Helper;
 using VertexSnapper.Managers;
+using VertexSnapper.Snapping;
 using ZeepSDK.LevelEditor;
 
 namespace VertexSnapper.States;
@@ -81,11 +82,23 @@ public class StateSetSecondCursor : IVertexSnapperState<VertexSnapper>
 				}
 			}
 
-			Vector3 closestVertexPosition = VertexSnapper.FindClosestVertexToHit(hit);
-			if (VertexSnapper.SecondCursor.transform.position != closestVertexPosition)
+			SnapTarget target = SnapTargetFinder.Find(hit, VertexSnapper.CurrentSnapMode);
+			if (target == null)
+			{
+				return;
+			}
+
+			VertexSnapper.SecondTarget = target;
+			CursorFactory.ShapeCursor(
+				VertexSnapper.SecondCursor,
+				target,
+				VertexSnapper.CurrentSnapMode,
+				VertexSnapper.CubeScaleFactor);
+
+			if (VertexSnapper.SecondCursor.transform.position != target.Position)
 			{
 				AudioEvents.MenuHover1.PlayIfEnabled();
-				VertexSnapper.SecondCursor.transform.position = closestVertexPosition;
+				VertexSnapper.SecondCursor.transform.position = target.Position;
 				if (VertexSnapperConfigManager.DistanceIndicatorEnabled.Value)
 				{
 					DistanceIndicator.Show(
@@ -95,7 +108,7 @@ public class StateSetSecondCursor : IVertexSnapperState<VertexSnapper>
 
 				if (VertexSnapperConfigManager.TargetHologramEnabled.Value)
 				{
-					VertexSnapper.MoveHologramToCursor(closestVertexPosition);
+					VertexSnapper.MoveHologramToCursor(target.Position);
 				}
 			}
 		}

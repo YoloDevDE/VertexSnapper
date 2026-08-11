@@ -10,6 +10,8 @@ public abstract class VertexSnapperConfigManager
 
 	private const KeyCode DefaultNoteWindowKeyBind = KeyCode.F8;
 
+	private const KeyCode DefaultSnapModeCycleKeyBind = KeyCode.Tab;
+
 	// Defaults for hologram colors (using 0-255 scale)
 	private static readonly Color DefaultOriginHologramColor = new Color().Primary(); // Cyan
 	private static readonly Color DefaultMovingHologramColor = new Color().Warning(); // Yellow
@@ -21,6 +23,7 @@ public abstract class VertexSnapperConfigManager
 
 	public static ConfigEntry<KeyCode> VertexKeyBind { get; private set; }
 	public static ConfigEntry<KeyCode> ModifierKeyBind { get; private set; }
+	public static ConfigEntry<KeyCode> SnapModeCycleKeyBind { get; private set; }
 	private static ConfigEntry<bool> ModEnabled { get; set; }
 	public static ConfigEntry<bool> SoundEnabled { get; private set; }
 
@@ -90,6 +93,14 @@ public abstract class VertexSnapperConfigManager
 				false,
 				"Only for bug hunting. Writes every state change, key press and gizmo move to " +
 				"BepInEx/config/VertexSnapper.trace.log, and enables the note window."
+			);
+
+		SnapModeCycleKeyBind =
+			Config.Bind(
+				"02 Keybinds",
+				"Snap Mode Key",
+				DefaultSnapModeCycleKeyBind,
+				"While the snapper key is held, this key cycles Point -> Edge -> Face"
 			);
 
 		NoteWindowKeyBind =

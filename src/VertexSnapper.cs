@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -12,6 +12,7 @@ using VertexSnapper.Components;
 using VertexSnapper.Helper;
 using VertexSnapper.Managers;
 using VertexSnapper.Service;
+using VertexSnapper.Snapping;
 using VertexSnapper.States;
 using ZeepSDK.LevelEditor;
 using ZeepSDK.Messaging;
@@ -60,6 +61,10 @@ public class VertexSnapper : MonoBehaviour
 	private ManualLogSource Logger => Plugin.Instance.Logger;
 	public IVertexSnapperState<VertexSnapper> CurrentState { get; set; }
 	public GameObject Hologram { get; set; }
+
+	public SnapMode CurrentSnapMode { get; private set; } = SnapMode.Point;
+	public SnapTarget FirstTarget { get; set; }
+	public SnapTarget SecondTarget { get; set; }
 
 	public Vector3 CubeSize { get; set; }
 	public float CubeScaleFactor { get; set; } = 0.5f;
@@ -134,13 +139,68 @@ public class VertexSnapper : MonoBehaviour
 	}
 
 
-	public void SnapCursorToVertex(Transform targetVertex, List<BlockProperties> filter)
+	/// <summary>
+	///     Point moves the selection, edge and face also turn it. The rotation is worked out once here
+	///     and used by both the preview and the snap, so what you see before the click is what you get.
+	/// </summary>
+	public Quaternion SnapRotation()
 	{
-		if (RaycastUtils.IsSphereCastOnBlockSuccessful(MainCamera, out RaycastHit hit, filter))
+		if (CurrentSnapMode == SnapMode.Point)
 		{
-			targetVertex.position = FindClosestVertexToHit(hit);
+			return Quaternion.identity;
 		}
+
+		if (FirstTarget == null || SecondTarget == null)
+		{
+			return Quaternion.identity;
+		}
+
+		if (CurrentSnapMode == SnapMode.Face)
+		{
+			return Quaternion.FromToRotation(FirstTarget.Direction, -SecondTarget.Direction);
+		}
+
+		return EdgeRotation();
 	}
+
+	/// <summary>
+	///     An edge has no front and no back, so both orientations line it up. Taking the nearer one
+	///     keeps the selection from flipping end over end for no reason.
+	/// </summary>
+	private Quaternion EdgeRotation()
+	{
+		Vector3 source = FirstTarget.Direction;
+		Vector3 target = SecondTarget.Direction;
+		if (Vector3.Dot(source, target) < 0f)
+		{
+			target = -target;
+		}
+
+		return Quaternion.FromToRotation(source, target);
+	}
+
+	public void CycleSnapMode()
+	{
+		CurrentSnapMode = NextSnapMode();
+		AudioEvents.MenuClick.PlayIfEnabled();
+		MessengerApi.Log($"[Vertexsnapper] Snap mode: <#f00>{CurrentSnapMode}</color>", 1.5f);
+	}
+
+	private SnapMode NextSnapMode()
+	{
+		if (CurrentSnapMode == SnapMode.Point)
+		{
+			return SnapMode.Edge;
+		}
+
+		if (CurrentSnapMode == SnapMode.Edge)
+		{
+			return SnapMode.Face;
+		}
+
+		return SnapMode.Point;
+	}
+
 
 	public void ChangeState(IVertexSnapperState<VertexSnapper> newVertexSnapperState)
 	{
@@ -341,9 +401,15 @@ public class VertexSnapper : MonoBehaviour
 			return;
 		}
 
+		Quaternion rotation = SnapRotation();
+		if (Hologram)
+		{
+			Hologram.transform.rotation = rotation;
+		}
+
 		foreach ((Transform savedTransform, Vector3 offset) in HologramOffsets)
 		{
-			savedTransform.position = cursorPos + offset;
+			savedTransform.position = cursorPos + rotation * offset;
 		}
 	}
 
@@ -368,12 +434,15 @@ public class VertexSnapper : MonoBehaviour
 		}
 
 		// Apply movement
-		Vector3 directionVector = SecondCursor.transform.position - FirstCursor.transform.position;
+		Quaternion rotation = SnapRotation();
+		Vector3 pivot = FirstCursor.transform.position;
+		Vector3 directionVector = SecondCursor.transform.position - pivot;
 		foreach (BlockProperties block in BlockSelectionCache.Where(b => b))
 		{
 			Vector3 oldPosition = block.transform.position;
-			Vector3 newPosition = oldPosition + directionVector;
+			Vector3 newPosition = pivot + rotation * (oldPosition - pivot) + directionVector;
 			block.transform.position = newPosition;
+			block.transform.rotation = rotation * block.transform.rotation;
 		}
 
 
@@ -444,30 +513,6 @@ public class VertexSnapper : MonoBehaviour
 	}
 
 
-	public Vector3 FindClosestVertexToHit(RaycastHit hit)
-	{
-		float shortestDistance = float.MaxValue;
-		Vector3 closestVertexInMesh = Vector3.zero;
-		MeshFilter[] selectedMeshFilters = hit.collider.gameObject.GetComponentInParent<BlockProperties>()
-			.GetComponentsInChildren<MeshFilter>();
-		foreach (MeshFilter meshFilter in selectedMeshFilters.Where(m => m))
-		{
-			foreach (Vector3 vertexInMesh in meshFilter.sharedMesh.vertices)
-			{
-				Vector3 vertexWorldPos = meshFilter.transform.TransformPoint(vertexInMesh);
-				float currentDistance = (hit.point - vertexWorldPos).sqrMagnitude;
-				if (currentDistance > shortestDistance)
-				{
-					continue;
-				}
-
-				shortestDistance = currentDistance;
-				closestVertexInMesh = vertexWorldPos;
-			}
-		}
-
-		return closestVertexInMesh;
-	}
 
 	public void CacheOriginalMaterials(List<BlockProperties> blocks, Dictionary<Renderer, Material[]> originalMaterialsCache)
 	{

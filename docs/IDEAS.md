@@ -1,0 +1,1 @@
+- Rotate the selection around the contact normal with the scroll wheel, in 15 degree steps.

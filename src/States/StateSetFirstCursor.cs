@@ -2,6 +2,7 @@ using FMODSyntax;
 using UnityEngine;
 using VertexSnapper.Helper;
 using VertexSnapper.Managers;
+using VertexSnapper.Snapping;
 using ZeepSDK.LevelEditor;
 using ZeepSDK.Messaging;
 
@@ -16,6 +17,7 @@ public class StateSetFirstCursor : IVertexSnapperState<VertexSnapper>
 		KeyInputManager.OnKeyUp[VertexSnapperConfigManager.VertexKeyBind.Value] += ChangeStateToAbort;
 		KeyInputManager.OnMouseDown[0] += TryChangeStateToRoaming;
 		KeyInputManager.AnyScroll += OnAnyScroll;
+		KeyInputManager.OnKeyDown[VertexSnapperConfigManager.SnapModeCycleKeyBind.Value] += CycleSnapMode;
 
 		LevelEditorApi.BlockMouseInput(this);
 		LevelEditorApi.BlockKeyboardInput(this);
@@ -45,6 +47,7 @@ public class StateSetFirstCursor : IVertexSnapperState<VertexSnapper>
 		KeyInputManager.OnKeyUp[VertexSnapperConfigManager.VertexKeyBind.Value] -= ChangeStateToAbort;
 		KeyInputManager.OnMouseDown[0] -= TryChangeStateToRoaming;
 		KeyInputManager.AnyScroll -= OnAnyScroll;
+		KeyInputManager.OnKeyDown[VertexSnapperConfigManager.SnapModeCycleKeyBind.Value] -= CycleSnapMode;
 
 		LevelEditorApi.UnblockMouseInput(this);
 		LevelEditorApi.UnblockKeyboardInput(this);
@@ -65,14 +68,26 @@ public class StateSetFirstCursor : IVertexSnapperState<VertexSnapper>
 				);
 			}
 
-			Vector3 closestVertexPosition = VertexSnapper.FindClosestVertexToHit(hit);
-			if (VertexSnapper.FirstCursor.transform.position == closestVertexPosition)
+			SnapTarget target = SnapTargetFinder.Find(hit, VertexSnapper.CurrentSnapMode);
+			if (target == null)
+			{
+				return;
+			}
+
+			VertexSnapper.FirstTarget = target;
+			CursorFactory.ShapeCursor(
+				VertexSnapper.FirstCursor,
+				target,
+				VertexSnapper.CurrentSnapMode,
+				VertexSnapper.CubeScaleFactor);
+
+			if (VertexSnapper.FirstCursor.transform.position == target.Position)
 			{
 				return;
 			}
 
 			AudioEvents.MenuHover1.PlayIfEnabled();
-			VertexSnapper.FirstCursor.transform.position = closestVertexPosition;
+			VertexSnapper.FirstCursor.transform.position = target.Position;
 
 			return;
 		}
@@ -87,23 +102,13 @@ public class StateSetFirstCursor : IVertexSnapperState<VertexSnapper>
 			return;
 		}
 
+		// Scale off the stored factor, not off localScale - an edge or face cursor is stretched,
+		// so reading its scale back would make every scroll step grow it further out of shape.
 		const float scaleSpeed = 0.2f;
-		Transform t = VertexSnapper.FirstCursor.transform;
-		VertexSnapper.CubeSize = t.localScale;
-
-		// Apply delta (uniform scaling)
 		float factor = 1f + delta * scaleSpeed;
-		VertexSnapper.CubeSize *= factor;
 
-
-		VertexSnapper.CubeScaleFactor = Mathf.Clamp(VertexSnapper.CubeSize.x, 0.05f, 5f);
-		VertexSnapper.CubeSize = new Vector3(
-			VertexSnapper.CubeScaleFactor,
-			VertexSnapper.CubeScaleFactor,
-			VertexSnapper.CubeScaleFactor
-		);
-
-		t.localScale = VertexSnapper.CubeSize;
+		VertexSnapper.CubeScaleFactor = Mathf.Clamp(VertexSnapper.CubeScaleFactor * factor, 0.05f, 5f);
+		VertexSnapper.CubeSize = Vector3.one * VertexSnapper.CubeScaleFactor;
 	}
 
 
@@ -125,6 +130,11 @@ public class StateSetFirstCursor : IVertexSnapperState<VertexSnapper>
 	private bool OriginIsValid()
 	{
 		return VertexSnapper && VertexSnapper.FirstCursor;
+	}
+
+	private void CycleSnapMode()
+	{
+		VertexSnapper.CycleSnapMode();
 	}
 
 	private void ChangeStateToAbort()
