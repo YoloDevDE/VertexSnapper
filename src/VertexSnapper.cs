@@ -169,7 +169,8 @@ public class VertexSnapper : MonoBehaviour
 	/// <summary>
 	///     Think of the two edges as a door hinge. Laying them together fixes the axis but leaves the
 	///     door free to swing, and the two faces are what say at which angle it comes to rest: they
-	///     end up in one plane, both pointing the same way, each block on its own side of the hinge.
+	///     end up lying on each other, facing into each other, both reaching the same way from the
+	///     hinge. The blocks meet along that surface rather than sitting side by side.
 	///
 	///     Without a face on both sides only the hinge is known, so it falls back to lining the edges
 	///     up and leaving the swing alone. A partial alignment beats none.
@@ -189,14 +190,13 @@ public class VertexSnapper : MonoBehaviour
 			return EdgeRotation();
 		}
 
-		return Quaternion.LookRotation(SecondFace.Direction, -targetOutward) *
+		return Quaternion.LookRotation(-SecondFace.Direction, targetOutward) *
 		       Quaternion.Inverse(Quaternion.LookRotation(FirstFace.Direction, sourceOutward));
 	}
 
 	/// <summary>
-	///     Which way the face reaches from the hinge, flattened into the face itself. Turning this
-	///     against the target's leaves the two blocks on opposite sides of the shared edge instead of
-	///     stacked on top of each other.
+	///     Which way the face reaches from the hinge, flattened into the face itself. Matching it to
+	///     the target's is what makes the two faces cover each other instead of lying end to end.
 	/// </summary>
 	private Vector3 AwayFromEdge(SnapTarget edge, SnapTarget face)
 	{
