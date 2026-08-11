@@ -182,6 +182,9 @@ public class VertexSnapper : MonoBehaviour
 	public void CycleSnapMode()
 	{
 		CurrentSnapMode = NextSnapMode();
+		// The face cursor carries a triangle mesh instead of the cube it was built with, so the
+		// cursor is thrown away rather than reshaped and comes back as a plain cube next frame.
+		SafeDestroy(FirstCursor);
 		AudioEvents.MenuClick.PlayIfEnabled();
 		MessengerApi.Log($"[Vertexsnapper] Snap mode: <#f00>{CurrentSnapMode}</color>", 1.5f);
 	}

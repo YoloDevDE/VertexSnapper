@@ -22,14 +22,14 @@ public class StateSetFirstCursor : IVertexSnapperState<VertexSnapper>
 		LevelEditorApi.BlockMouseInput(this);
 		LevelEditorApi.BlockKeyboardInput(this);
 
-		// VertexSnapper.CacheAndRemoveBlockSelection();
-		// if (VertexSnapperConfigManager.OriginHologramEnabled.Value)
-		// {
-		//     VertexSnapper.ApplyWireframeMaterial(
-		//         VertexSnapper.BlockSelectionCache,
-		//         VertexSnapperConfigManager.OriginHologramColor.Value
-		//     );
-		// }
+		VertexSnapper.CacheAndRemoveBlockSelection();
+		if (VertexSnapperConfigManager.OriginHologramEnabled.Value)
+		{
+			VertexSnapper.ApplyWireframeMaterial(
+				VertexSnapper.BlockSelectionCache,
+				VertexSnapperConfigManager.OriginHologramColor.Value
+			);
+		}
 
 
 		MessengerApi.Log("[Vertexsnapper] Im gonna snap! <sprite=\"moremojis\" name=\"ZaagBladPadRood2\">", 0.6f);

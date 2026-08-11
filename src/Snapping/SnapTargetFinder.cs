@@ -64,7 +64,7 @@ public abstract class SnapTargetFinder
 	{
 		Transform meshTransform = meshFilter.transform;
 		return meshFilter.sharedMesh.vertices
-			.Select(vertex => new SnapTarget(meshTransform.TransformPoint(vertex), Vector3.zero));
+			.Select(vertex => new SnapTarget(meshTransform.TransformPoint(vertex), Vector3.zero, null));
 	}
 
 	private static IEnumerable<SnapTarget> EdgesOf(MeshFilter meshFilter)
@@ -99,12 +99,13 @@ public abstract class SnapTargetFinder
 
 			yield return new SnapTarget(
 				(first + second + third) / 3f,
-				Vector3.Cross(second - first, third - first).normalized);
+				Vector3.Cross(second - first, third - first).normalized,
+				[first, second, third]);
 		}
 	}
 
 	private static SnapTarget Edge(Vector3 from, Vector3 to)
 	{
-		return new SnapTarget((from + to) * 0.5f, (to - from).normalized);
+		return new SnapTarget((from + to) * 0.5f, (to - from).normalized, null);
 	}
 }

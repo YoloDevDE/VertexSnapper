@@ -1,3 +1,4 @@
+using System.Linq;
 using JetBrains.Annotations;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -9,8 +10,7 @@ public abstract class CursorFactory
 {
 	private const float EdgeThickness = 0.3f;
 	private const float EdgeLength = 3f;
-	private const float FaceWidth = 3f;
-	private const float FaceThickness = 0.15f;
+	private const float FaceLift = 0.01f;
 
 	public static GameObject CreateCursor(
 		string cursorName,
@@ -43,24 +43,39 @@ public abstract class CursorFactory
 	/// </summary>
 	public static void ShapeCursor(GameObject cursor, SnapTarget target, SnapMode mode, float scale)
 	{
-		if (mode == SnapMode.Point || target.Direction == Vector3.zero)
+		if (mode == SnapMode.Face && target.Corners != null)
 		{
-			cursor.transform.rotation = Quaternion.identity;
-			cursor.transform.localScale = Vector3.one * scale;
+			ShapeAsTriangle(cursor, target);
 			return;
 		}
 
-		cursor.transform.rotation = Quaternion.LookRotation(target.Direction);
-		cursor.transform.localScale = ScaleFor(mode, scale);
-	}
-
-	private static Vector3 ScaleFor(SnapMode mode, float scale)
-	{
-		if (mode == SnapMode.Edge)
+		if (mode == SnapMode.Edge && target.Direction != Vector3.zero)
 		{
-			return new Vector3(scale * EdgeThickness, scale * EdgeThickness, scale * EdgeLength);
+			cursor.transform.rotation = Quaternion.LookRotation(target.Direction);
+			cursor.transform.localScale = new Vector3(scale * EdgeThickness, scale * EdgeThickness, scale * EdgeLength);
+			return;
 		}
 
-		return new Vector3(scale * FaceWidth, scale * FaceWidth, scale * FaceThickness);
+		cursor.transform.rotation = Quaternion.identity;
+		cursor.transform.localScale = Vector3.one * scale;
+	}
+
+	/// <summary>
+	///     Replaces the cube with the hit triangle itself, so the highlight covers exactly the face
+	///     that will be snapped and nothing next to it. The corners are lifted a hair along the normal
+	///     to keep the block's own surface from fighting the highlight for the same pixels, and the
+	///     triangle is wound both ways so it stays visible from behind.
+	/// </summary>
+	private static void ShapeAsTriangle(GameObject cursor, SnapTarget target)
+	{
+		cursor.transform.rotation = Quaternion.identity;
+		cursor.transform.localScale = Vector3.one;
+
+		Vector3 lift = target.Direction * FaceLift;
+		Mesh mesh = cursor.GetComponent<MeshFilter>().mesh;
+		mesh.Clear();
+		mesh.vertices = target.Corners.Select(corner => corner - target.Position + lift).ToArray();
+		mesh.triangles = [0, 1, 2, 0, 2, 1];
+		mesh.RecalculateBounds();
 	}
 }

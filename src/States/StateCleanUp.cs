@@ -1,4 +1,4 @@
-﻿namespace VertexSnapper.States;
+namespace VertexSnapper.States;
 
 public class StateCleanUp : IVertexSnapperState<VertexSnapper>
 {
@@ -7,7 +7,7 @@ public class StateCleanUp : IVertexSnapperState<VertexSnapper>
 
 	public void Enter()
 	{
-		// VertexSnapper.RestoreDefaultState();
+		VertexSnapper.RestoreDefaultState();
 		ChangeStateToIdle();
 	}
 
