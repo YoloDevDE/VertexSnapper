@@ -8,7 +8,10 @@ using JetBrains.Annotations;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.UIElements;
+using VertexSnapper.Components;
 using VertexSnapper.Helper;
+using VertexSnapper.Managers;
+using VertexSnapper.Service;
 using VertexSnapper.States;
 using ZeepSDK.LevelEditor;
 using ZeepSDK.Messaging;
@@ -33,6 +36,7 @@ public class VertexSnapper : MonoBehaviour
 
 	private bool _isStateChanging;
 	private float _pulseTime;
+	private TraceService _trace;
 
 	// 3) Instance fields
 	public Dictionary<Renderer, Material[]> BlockSelectionMaterials { get; } = new();
@@ -71,7 +75,26 @@ public class VertexSnapper : MonoBehaviour
 
 	private void Start()
 	{
+		StartTracing();
 		ChangeState(new StateIdle());
+	}
+
+	/// <summary>
+	///     Both the tracer and the note window live on this GameObject, so they come and go with the
+	///     level editor and need no teardown of their own. Neither is created unless the config asks
+	///     for it - a trace that costs nothing when switched off is one nobody has to remember to
+	///     switch off.
+	/// </summary>
+	private void StartTracing()
+	{
+		if (!VertexSnapperConfigManager.TraceEnabled.Value)
+		{
+			return;
+		}
+
+		_trace = new TraceService(this);
+		gameObject.AddComponent<TraceBehaviour>().Bind(_trace);
+		gameObject.AddComponent<NoteWindow>();
 	}
 
 	private void Update()
@@ -121,12 +144,23 @@ public class VertexSnapper : MonoBehaviour
 
 	public void ChangeState(IVertexSnapperState<VertexSnapper> newVertexSnapperState)
 	{
+		TraceStateChange(newVertexSnapperState);
 		_isStateChanging = true;
 		CurrentState?.Exit();
 		CurrentState = newVertexSnapperState;
 		CurrentState.VertexSnapper = this;
 		CurrentState.Enter();
 		_isStateChanging = false;
+	}
+
+	private void TraceStateChange(IVertexSnapperState<VertexSnapper> newVertexSnapperState)
+	{
+		if (_trace == null)
+		{
+			return;
+		}
+
+		TraceService.TraceStateChange(CurrentState, newVertexSnapperState);
 	}
 
 	public void CacheAndRemoveBlockSelection()

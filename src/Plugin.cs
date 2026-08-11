@@ -27,6 +27,7 @@ public class Plugin : BaseUnityPlugin
 	private void Awake()
 	{
 		Instance = this;
+		Util.Logger.Initialize(base.Logger);
 		_harmony = new Harmony(MyPluginInfo.PLUGIN_GUID);
 		_harmony.PatchAll();
 
@@ -48,6 +49,8 @@ public class Plugin : BaseUnityPlugin
 
 		_harmony?.UnpatchSelf();
 		_harmony = null;
+
+		Util.Logger.Dispose();
 	}
 
 	private void HandleSceneLoaded(Scene scene, LoadSceneMode mode)

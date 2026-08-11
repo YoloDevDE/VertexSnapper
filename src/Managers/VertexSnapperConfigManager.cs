@@ -10,6 +10,8 @@ public abstract class VertexSnapperConfigManager
 
 	private const KeyCode DefaultGizmoKeyBind = KeyCode.G;
 
+	private const KeyCode DefaultNoteWindowKeyBind = KeyCode.F8;
+
 	// Defaults for hologram colors (using 0-255 scale)
 	private static readonly Color DefaultOriginHologramColor = new Color().Primary(); // Cyan
 	private static readonly Color DefaultMovingHologramColor = new Color().Warning(); // Yellow
@@ -42,6 +44,10 @@ public abstract class VertexSnapperConfigManager
 	public static bool IsEnabled => ModEnabled?.Value ?? true;
 	public static bool IsModifierPressed => Input.GetKey(ModifierKeyBind.Value) || ModifierKeyBind.Value == KeyCode.None;
 	public static ConfigEntry<KeyCode> GizmoKeyBind { get; private set; }
+
+	// Diagnostics
+	public static ConfigEntry<bool> TraceEnabled { get; private set; }
+	public static ConfigEntry<KeyCode> NoteWindowKeyBind { get; private set; }
 
 	public static void Init(ConfigFile config)
 	{
@@ -86,6 +92,23 @@ public abstract class VertexSnapperConfigManager
 				"Gizmo Snap Key",
 				DefaultGizmoKeyBind,
 				"Holding down this key enables \"Snap Gizmo to Vertex\""
+			);
+
+		TraceEnabled =
+			Config.Bind(
+				"01 General",
+				"Write a Trace Log",
+				false,
+				"Only for bug hunting. Writes every state change, key press and gizmo move to " +
+				"BepInEx/config/VertexSnapper.trace.log, and enables the note window."
+			);
+
+		NoteWindowKeyBind =
+			Config.Bind(
+				"02 Keybinds",
+				"Note Window Key",
+				DefaultNoteWindowKeyBind,
+				"Opens a small box to type a note into the trace log. Only works while the trace log is on"
 			);
 
 		// --- Nested-style, ordered sections for holograms ---
