@@ -3,6 +3,20 @@
 The release workflow reads the section matching the `v*` tag being released and sends it to mod.io as the changelog. No
 section, no release - so write one before tagging.
 
-## 3.17.6
+## 3.18.0
 
-Write what changed in this version here. Every bullet lands in the mod.io changelog and in the GitHub release.
+- **Three snap levels.** Press `Tab` while the snapper key is held to cycle Point, Edge and Face.
+  Point moves the selection as before. Edge and Face also turn it, so it arrives lined up instead of
+  merely nearby.
+- **Face snapping aligns all three axes in one go.** A face alone leaves the turn around its own
+  normal open, which used to mean snapping twice. The cursor now also marks a reference direction -
+  the nearest outline edge on a flat face, or the block's own direction of travel on a curved one -
+  and that settles the last axis.
+- **The cursor shows what it found.** A cube on a point, a bar covering the edge end to end, and the
+  surface itself for a face. A cube side lights up whole rather than as one of its two triangles.
+- **Undo restores rotation too**, not just position.
+- Removed the unfinished gizmo snapping. It never worked, and it was quietly moving the editor's own
+  gizmo during ordinary vertex snaps.
+- New setting `02 Keybinds / Snap Mode Key`, default `Tab`.
+- New setting `01 General / Write a Trace Log` for bug hunting, off by default. With it on, `F8`
+  opens a small box to type a note straight into the log.

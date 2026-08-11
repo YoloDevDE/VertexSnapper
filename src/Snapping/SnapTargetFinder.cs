@@ -20,12 +20,16 @@ public abstract class SnapTargetFinder
 
 		IEnumerable<SnapTarget> candidates = block.GetComponentsInChildren<MeshFilter>()
 			.Where(meshFilter => meshFilter && meshFilter.sharedMesh)
-			.SelectMany(meshFilter => CandidatesOf(meshFilter, mode));
+			.SelectMany(meshFilter => CandidatesOf(meshFilter, block.transform, hit.point, mode));
 
 		return Closest(candidates, hit.point);
 	}
 
-	private static IEnumerable<SnapTarget> CandidatesOf(MeshFilter meshFilter, SnapMode mode)
+	private static IEnumerable<SnapTarget> CandidatesOf(
+		MeshFilter meshFilter,
+		Transform blockTransform,
+		Vector3 hitPoint,
+		SnapMode mode)
 	{
 		if (mode == SnapMode.Point)
 		{
@@ -37,7 +41,7 @@ public abstract class SnapTargetFinder
 			return EdgesOf(meshFilter);
 		}
 
-		return FacesOf(meshFilter);
+		return FacesOf(meshFilter, blockTransform, hitPoint);
 	}
 
 	private static SnapTarget Closest(IEnumerable<SnapTarget> candidates, Vector3 hitPoint)
@@ -47,7 +51,7 @@ public abstract class SnapTargetFinder
 
 		foreach (SnapTarget candidate in candidates)
 		{
-			float currentDistance = (hitPoint - candidate.Position).sqrMagnitude;
+			float currentDistance = (hitPoint - candidate.Focus).sqrMagnitude;
 			if (currentDistance > shortestDistance)
 			{
 				continue;
@@ -64,7 +68,8 @@ public abstract class SnapTargetFinder
 	{
 		Transform meshTransform = meshFilter.transform;
 		return meshFilter.sharedMesh.vertices
-			.Select(vertex => new SnapTarget(meshTransform.TransformPoint(vertex), Vector3.zero, null));
+			.Select(vertex => meshTransform.TransformPoint(vertex))
+			.Select(vertex => new SnapTarget(vertex, Vector3.zero, null, Vector3.zero, vertex));
 	}
 
 	private static IEnumerable<SnapTarget> EdgesOf(MeshFilter meshFilter)
@@ -85,27 +90,43 @@ public abstract class SnapTargetFinder
 		}
 	}
 
-	private static IEnumerable<SnapTarget> FacesOf(MeshFilter meshFilter)
+	/// <summary>
+	///     One target per flat surface, not per triangle, so a cube side is offered whole and the
+	///     seam running across it never shows up as an edge of its own.
+	/// </summary>
+	private static IEnumerable<SnapTarget> FacesOf(MeshFilter meshFilter, Transform blockTransform, Vector3 hitPoint)
 	{
-		Vector3[] vertices = meshFilter.sharedMesh.vertices;
-		int[] triangles = meshFilter.sharedMesh.triangles;
 		Transform meshTransform = meshFilter.transform;
 
-		for (int i = 0; i < triangles.Length; i += 3)
-		{
-			Vector3 first = meshTransform.TransformPoint(vertices[triangles[i]]);
-			Vector3 second = meshTransform.TransformPoint(vertices[triangles[i + 1]]);
-			Vector3 third = meshTransform.TransformPoint(vertices[triangles[i + 2]]);
+		return MeshFaceCache.FacesOf(meshFilter.sharedMesh)
+			.Select(face => Face(face, meshTransform, blockTransform, hitPoint));
+	}
 
-			yield return new SnapTarget(
-				(first + second + third) / 3f,
-				Vector3.Cross(second - first, third - first).normalized,
-				[first, second, third]);
-		}
+	private static SnapTarget Face(MeshFace face, Transform meshTransform, Transform blockTransform, Vector3 hitPoint)
+	{
+		Vector3[][] corners = face.Triangles
+			.Select(triangle => triangle.Select(meshTransform.TransformPoint).ToArray())
+			.ToArray();
+
+		return new SnapTarget(
+			meshTransform.TransformPoint(face.Center),
+			meshTransform.TransformDirection(face.Normal).normalized,
+			corners,
+			ReferenceDirection.For(face, meshTransform, blockTransform, hitPoint),
+			NearestCorner(corners, hitPoint));
+	}
+
+	private static Vector3 NearestCorner(Vector3[][] corners, Vector3 hitPoint)
+	{
+		return corners
+			.SelectMany(triangle => triangle)
+			.OrderBy(corner => (corner - hitPoint).sqrMagnitude)
+			.First();
 	}
 
 	private static SnapTarget Edge(Vector3 from, Vector3 to)
 	{
-		return new SnapTarget((from + to) * 0.5f, (to - from).normalized, [from, to]);
+		Vector3 middle = (from + to) * 0.5f;
+		return new SnapTarget(middle, (to - from).normalized, [[from, to]], Vector3.zero, middle);
 	}
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -157,10 +157,36 @@ public class VertexSnapper : MonoBehaviour
 
 		if (CurrentSnapMode == SnapMode.Face)
 		{
-			return Quaternion.FromToRotation(FirstTarget.Direction, -SecondTarget.Direction);
+			return FaceRotation();
 		}
 
 		return EdgeRotation();
+	}
+
+	/// <summary>
+	///     With a reference on both sides the two faces form full coordinate systems, so a single
+	///     snap settles all three axes and the second one people used to need is gone. Without a
+	///     reference - which happens where the geometry offers none - it falls back to turning the
+	///     normals against each other and leaves the roll alone. A partial alignment beats none.
+	/// </summary>
+	private Quaternion FaceRotation()
+	{
+		Vector3 sourceUp = Vector3.ProjectOnPlane(FirstTarget.Reference, FirstTarget.Direction);
+		Vector3 targetUp = Vector3.ProjectOnPlane(SecondTarget.Reference, SecondTarget.Direction);
+
+		if (sourceUp.sqrMagnitude < Mathf.Epsilon || targetUp.sqrMagnitude < Mathf.Epsilon)
+		{
+			return Quaternion.FromToRotation(FirstTarget.Direction, -SecondTarget.Direction);
+		}
+
+		if (Vector3.Dot(sourceUp, targetUp) < 0f)
+		{
+			targetUp = -targetUp;
+		}
+
+		Quaternion source = Quaternion.LookRotation(FirstTarget.Direction, sourceUp);
+		Quaternion target = Quaternion.LookRotation(-SecondTarget.Direction, targetUp);
+		return target * Quaternion.Inverse(source);
 	}
 
 	/// <summary>
