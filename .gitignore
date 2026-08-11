@@ -11,6 +11,10 @@
 FodyWeavers.xsd
 costura_files.txt
 
+# Claude Code checks out a second copy of the repo in here to work in isolation.
+# It is a git worktree, so git already knows about it - it must not also be committed.
+/.claude/worktrees/
+
 # JetBrains Rider
 /.idea/
 riderModule.iml
